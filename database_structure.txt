@@ -1,0 +1,117 @@
+Список таблиц в базе данных:
+Таблица: user_subscriptions
+  Колонка: id - int(11)
+  Колонка: user_id - int(11)
+  Колонка: channel_id - varchar(255)
+  Колонка: subscribed_at - timestamp
+
+Таблица: users
+  Колонка: id - int(11)
+  Колонка: email - varchar(255)
+  Колонка: name - varchar(255)
+  Колонка: google_user_id - varchar(255)
+  Колонка: password - varchar(255)
+  Колонка: token - varchar(255)
+  Колонка: registration_date - datetime
+  Колонка: email_activation_status - enum('activated','not_activated')
+  Колонка: timezone - varchar(255)
+  Колонка: preferred_language - varchar(2)
+  Колонка: google_refresh_token - varchar(255)
+  Колонка: subscriptions_processed - tinyint(1)
+  Колонка: last_subscriptions_update - timestamp
+
+Таблица: youtube_channels
+  Колонка: id - int(11)
+  Колонка: channel_id - varchar(255)
+  Колонка: title - varchar(255)
+  Колонка: description - text
+  Колонка: thumbnail_url - varchar(255)
+  Колонка: subscriber_count - int(11)
+  Колонка: video_count - int(11)
+  Колонка: view_count - bigint(20)
+  Колонка: created_at - timestamp
+
+
+Связи между таблицами (Внешние ключи):
+Таблица: user_subscriptions
+  Колонка: user_id -> users(id)
+  Колонка: channel_id -> youtube_channels(channel_id)
+
+Таблица: users
+
+Таблица: youtube_channels
+
+
+Примеры данных из таблиц:
+Таблица: user_subscriptions (Примеры записей)
+{
+    "id": "151",
+    "user_id": "10",
+    "channel_id": "UCNK0kzNrXAZjZWhuzrOzpXw",
+    "subscribed_at": "2024-09-07 23:46:36"
+}
+{
+    "id": "152",
+    "user_id": "10",
+    "channel_id": "UCn5oqeyuv6Tc9l-DoETVfAQ",
+    "subscribed_at": "2024-09-07 23:46:38"
+}
+{
+    "id": "153",
+    "user_id": "10",
+    "channel_id": "UC1eFXmJNkjITxPFWTy6RsWg",
+    "subscribed_at": "2024-09-07 23:46:39"
+}
+
+Таблица: users (Примеры записей)
+{
+    "id": "10",
+    "email": "serter2069@gmail.com",
+    "name": "Sergei Terekhov",
+    "google_user_id": "108701559029105801618",
+    "password": "",
+    "token": null,
+    "registration_date": "2024-09-07 23:46:34",
+    "email_activation_status": "not_activated",
+    "timezone": "UTC",
+    "preferred_language": "en",
+    "google_refresh_token": "1\/\/04AqRF8e5_2SFCgYIARAAGAQSNgF-L9IrfS5nbg9Z5o_L8yNeReyYmvod8wgcz8D48pXHc_YB0ogCqFUdKvw7kqKbHEdRasTGkw",
+    "subscriptions_processed": "0",
+    "last_subscriptions_update": "2024-09-08 01:00:25"
+}
+
+Таблица: youtube_channels (Примеры записей)
+{
+    "id": "51",
+    "channel_id": "UCNK0kzNrXAZjZWhuzrOzpXw",
+    "title": "DONA Food 도나푸드",
+    "description": "DONA Food",
+    "thumbnail_url": "https:\/\/yt3.ggpht.com\/yoT8o5Zml8-jvpB4jz3lJEP855ctXpNXdhFGKwUqKE6J6P3QFyVpRT2VkcNfDFb3Uw128sae9Q=s88-c-k-c0x00ffffff-no-rj",
+    "subscriber_count": null,
+    "video_count": null,
+    "view_count": null,
+    "created_at": "2024-09-07 23:46:35"
+}
+{
+    "id": "52",
+    "channel_id": "UCn5oqeyuv6Tc9l-DoETVfAQ",
+    "title": "Большой человек",
+    "description": "Большой человек, он же Шеф, он же Сергей Одесский – предприниматель из Санкт-Петербурга, неравнодушный ко всему, что связано с бизнесом и искусством ;)\n\nКанал создан, чтобы делится бизнес-идеями, секретами и фишками в самых разных сферах и нишах. Всё о предпринимательстве, деньгах и образе жизни предприимчивых россиян.",
+    "thumbnail_url": "https:\/\/yt3.ggpht.com\/ytc\/AIdro_myj7sIskwYJzqJZsKrFN1iyA8RZ1oWctt_q9jOHtGyuAE=s88-c-k-c0x00ffffff-no-rj",
+    "subscriber_count": null,
+    "video_count": null,
+    "view_count": null,
+    "created_at": "2024-09-07 23:46:37"
+}
+{
+    "id": "53",
+    "channel_id": "UC1eFXmJNkjITxPFWTy6RsWg",
+    "title": "Редакция",
+    "description": "YouTube-канал Алексея Пивоварова\n\nСотрудничество:\ninfo@redakciya.com\n\nРеклама:\nsales@redakciya.com",
+    "thumbnail_url": "https:\/\/yt3.ggpht.com\/ytc\/AIdro_kElZuLteoPcKZ07nm_u-agEOtsi2RTxfP0wRK-uD3r7B4=s88-c-k-c0x00ffffff-no-rj",
+    "subscriber_count": null,
+    "video_count": null,
+    "view_count": null,
+    "created_at": "2024-09-07 23:46:39"
+}
+
