@@ -2,41 +2,45 @@
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
-// Устанавливаем кодировку UTF-8
 header('Content-Type: text/html; charset=UTF-8');
 mb_internal_encoding('UTF-8');
 
-// Проверка наличия расширения ZipArchive
+include 'db_connection.php';
+
 if (!extension_loaded('zip')) {
     die('ZipArchive не доступен');
 }
 
-// Функция для добавления файлов в архив (только из текущей директории)
-function addFilesToZip($dir, $zipArchive)
-{
-    global $fileCount;
-    $files = scandir($dir);
-    foreach ($files as $file) {
-        if ($file !== "." && $file !== "..") {
-            $filePath = $dir . DIRECTORY_SEPARATOR . $file;
-            if (is_file($filePath)) {
-                $extension = pathinfo($file, PATHINFO_EXTENSION);
-                if (in_array($extension, ['php', 'js', 'yaml'])) {
-                    if ($zipArchive->addFile($filePath, $file)) {
-                        $fileCount++;
-                        echo "Добавлен файл: $file<br>";
-                    } else {
-                        echo "Не удалось добавить файл: $file<br>";
-                    }
-                }
-            }
+function getDirectoryFiles($dir) {
+    $files = [];
+    foreach (new DirectoryIterator($dir) as $file) {
+        if ($file->isFile() && in_array($file->getExtension(), ['php', 'js', 'yaml'])) {
+            $files[] = $file->getFilename();
         }
+    }
+    return $files;
+}
+
+function getSelectedFiles($conn) {
+    $result = $conn->query("SELECT filename FROM selected_files WHERE is_selected = 1");
+    $selectedFiles = [];
+    while ($row = $result->fetch_assoc()) {
+        $selectedFiles[] = $row['filename'];
+    }
+    return $selectedFiles;
+}
+
+function updateSelectedFiles($conn, $selectedFiles) {
+    $conn->query("UPDATE selected_files SET is_selected = 0");
+    foreach ($selectedFiles as $file) {
+        $filename = $conn->real_escape_string($file);
+        $conn->query("INSERT INTO selected_files (filename, is_selected) VALUES ('$filename', 1) 
+                      ON DUPLICATE KEY UPDATE is_selected = 1");
     }
 }
 
-// Функция для получения структуры базы данных
-function getDatabaseStructure($conn)
-{
+// Функции для работы с базой данных
+function getDatabaseStructure($conn) {
     $structure = "";
 
     // Получение списка таблиц
@@ -76,9 +80,7 @@ function getDatabaseStructure($conn)
     return $structure;
 }
 
-// Функция для получения списка таблиц в базе данных
-function getDatabaseTables($conn)
-{
+function getDatabaseTables($conn) {
     $tables = [];
     $result = $conn->query("SHOW TABLES");
     while ($row = $result->fetch_array()) {
@@ -87,9 +89,7 @@ function getDatabaseTables($conn)
     return $tables;
 }
 
-// Функция для получения колонок таблицы
-function getTableColumns($conn, $table)
-{
+function getTableColumns($conn, $table) {
     $columns = [];
     $result = $conn->query("SHOW COLUMNS FROM `$table`");
     while ($row = $result->fetch_assoc()) {
@@ -98,9 +98,7 @@ function getTableColumns($conn, $table)
     return $columns;
 }
 
-// Функция для получения внешних ключей таблицы
-function getTableForeignKeys($conn, $table)
-{
+function getTableForeignKeys($conn, $table) {
     $foreignKeys = [];
     $query = "
         SELECT 
@@ -121,9 +119,7 @@ function getTableForeignKeys($conn, $table)
     return $foreignKeys;
 }
 
-// Функция для получения примеров данных таблицы
-function getTableSampleData($conn, $table)
-{
+function getTableSampleData($conn, $table) {
     $sampleData = [];
     $query = "SELECT * FROM `$table` LIMIT 3";
     $result = $conn->query($query);
@@ -133,72 +129,61 @@ function getTableSampleData($conn, $table)
     return $sampleData;
 }
 
-// Подключение к базе данных
-include 'db_connection.php';
-
-$currentDir = __DIR__; // Путь к текущей директории
-$zipFileName = 'archive.zip'; // Имя создаваемого архива
-
-// Проверка пароля
-$correctPassword = 'Orelkosyak5';
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $enteredPassword = $_POST['password'] ?? '';
+    if (isset($_POST['select_files'])) {
+        $selectedFiles = $_POST['files'] ?? [];
+        updateSelectedFiles($conn, $selectedFiles);
+    } elseif (isset($_POST['create_archive'])) {
+        $enteredPassword = $_POST['password'] ?? '';
+        $correctPassword = 'Orelkosyak5';
 
-    if ($enteredPassword === $correctPassword) {
-        $fileCount = 0;
-        $zip = new ZipArchive();
-        $tempFile = tempnam(sys_get_temp_dir(), 'zip');
-        
-        echo "Попытка создать архив: $tempFile<br>";
-        
-        if ($zip->open($tempFile, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TRUE) {
-            echo "Архив успешно создан.<br>";
+        if ($enteredPassword === $correctPassword) {
+            $selectedFiles = getSelectedFiles($conn);
+            $fileCount = 0;
+            $zip = new ZipArchive();
+            $zipFileName = 'archive.zip';
+            $tempFile = tempnam(sys_get_temp_dir(), 'zip');
             
-            // Добавление файлов в архив (только из текущей директории)
-            addFilesToZip($currentDir, $zip);
-            
-            echo "Всего файлов добавлено в архив: $fileCount<br>";
-            
-            // Получение структуры базы данных и добавление её в архив
-            echo "Получение структуры базы данных...<br>";
-            $dbStructure = getDatabaseStructure($conn);
-            $zip->addFromString('database_structure.txt', $dbStructure);
-            echo "Структура базы данных добавлена в архив.<br>";
-            
-            $zip->close();
-            echo "Архив закрыт.<br>";
-
-            // Проверка размера архива
-            if (file_exists($tempFile) && filesize($tempFile) > 0) {
-                echo "Архив существует и не пустой. Размер: " . filesize($tempFile) . " байт<br>";
-                // Скачиваем архив
-                header('Content-Type: application/zip');
-                header('Content-Disposition: attachment; filename="' . basename($zipFileName) . '"');
-                header('Content-Length: ' . filesize($tempFile));
-                header('Content-Transfer-Encoding: binary');
-                header('Cache-Control: must-revalidate');
-                header('Pragma: public');
-                if (ob_get_length()) ob_clean();
-                flush();
-                if (readfile($tempFile)) {
-                    echo "Файл успешно отправлен.<br>";
-                } else {
-                    echo "Ошибка при отправке файла.<br>";
+            if ($zip->open($tempFile, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TRUE) {
+                foreach ($selectedFiles as $file) {
+                    if (file_exists($file)) {
+                        $zip->addFile($file);
+                        $fileCount++;
+                    }
                 }
-                // Удаляем временный файл после скачивания
-                unlink($tempFile);
-                exit;
+                
+                $dbStructure = getDatabaseStructure($conn);
+                $zip->addFromString('database_structure.txt', $dbStructure);
+                
+                $zip->close();
+
+                if (file_exists($tempFile) && filesize($tempFile) > 0) {
+                    header('Content-Type: application/zip');
+                    header('Content-Disposition: attachment; filename="' . basename($zipFileName) . '"');
+                    header('Content-Length: ' . filesize($tempFile));
+                    header('Content-Transfer-Encoding: binary');
+                    header('Cache-Control: must-revalidate');
+                    header('Pragma: public');
+                    if (ob_get_length()) ob_clean();
+                    flush();
+                    readfile($tempFile);
+                    unlink($tempFile);
+                    exit;
+                } else {
+                    echo "Ошибка при создании архива.";
+                }
             } else {
-                echo "Архив пуст или не был создан. Временный файл: $tempFile, Размер: " . (file_exists($tempFile) ? filesize($tempFile) : 'Файл не существует') . " байт<br>";
+                echo "Не удалось создать архив.";
             }
         } else {
-            echo "Не удалось создать архив. Код ошибки ZipArchive: " . $zip->getStatusString() . "<br>";
+            echo 'Неверный пароль. Пожалуйста, попробуйте снова.';
         }
-    } else {
-        echo 'Неверный пароль. Пожалуйста, попробуйте снова.';
     }
 }
+
+$currentDir = __DIR__;
+$allFiles = getDirectoryFiles($currentDir);
+$selectedFiles = getSelectedFiles($conn);
 ?>
 
 <!DOCTYPE html>
@@ -206,13 +191,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Скачать архив</title>
+    <title>Управление архивом</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.4; padding: 20px; }
+        h2 { color: #333; margin-top: 20px; }
+        form { margin-bottom: 20px; }
+        label { display: inline-block; margin-bottom: 3px; }
+        input[type="password"] { margin-bottom: 10px; }
+        button { padding: 5px 10px; }
+        .file-list { column-count: 3; column-gap: 20px; }
+    </style>
 </head>
 <body>
-    <h2>Введите пароль для скачивания архива</h2>
+    <h2>Выберите файлы для архивации</h2>
     <form method="post">
-        <input type="password" name="password" required>
-        <button type="submit">Скачать архив</button>
+        <label>
+            <input type="checkbox" id="select-all"> Выбрать все / Снять выделение со всех
+        </label><br><br>
+        <div class="file-list">
+            <?php foreach ($allFiles as $file): ?>
+                <label>
+                    <input type="checkbox" name="files[]" value="<?php echo htmlspecialchars($file); ?>"
+                           <?php echo in_array($file, $selectedFiles) ? 'checked' : ''; ?>
+                           class="file-checkbox">
+                    <?php echo htmlspecialchars($file); ?>
+                </label><br>
+            <?php endforeach; ?>
+        </div>
+        <button type="submit" name="select_files">Сохранить выбор</button>
     </form>
+
+    <h2>Создать архив</h2>
+    <form method="post">
+        <label for="password">Введите пароль для создания архива:</label>
+        <input type="password" id="password" name="password" required>
+        <button type="submit" name="create_archive">Создать и скачать архив</button>
+    </form>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const selectAllCheckbox = document.getElementById('select-all');
+            const fileCheckboxes = document.querySelectorAll('.file-checkbox');
+
+            selectAllCheckbox.addEventListener('change', function() {
+                fileCheckboxes.forEach(checkbox => {
+                    checkbox.checked = selectAllCheckbox.checked;
+                });
+            });
+
+            fileCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    selectAllCheckbox.checked = Array.from(fileCheckboxes).every(cb => cb.checked);
+                });
+            });
+        });
+    </script>
 </body>
 </html>

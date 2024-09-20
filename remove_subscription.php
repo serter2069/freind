@@ -1,23 +1,39 @@
 <?php
 session_start();
 require_once 'db_connection.php';
-require_once 'functions.php';
+
+header('Content-Type: application/json');
 
 if (!isset($_SESSION['user_id'])) {
-    echo json_encode(['status' => 'error', 'message' => 'User not authenticated']);
+    echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
     exit();
 }
 
 $user_id = $_SESSION['user_id'];
-$data = json_decode(file_get_contents('php://input'), true);
-$channel_id = $data['channel_id'] ?? null;
+
+$input = json_decode(file_get_contents('php://input'), true);
+$channel_id = $input['channel_id'] ?? null;
 
 if (!$channel_id) {
     echo json_encode(['status' => 'error', 'message' => 'Channel ID is required']);
     exit();
 }
 
-if (removeUserSubscription($user_id, $channel_id)) {
+function removeUserSubscription($user_id, $channel_id) {
+    global $conn;
+    $stmt = $conn->prepare("
+        DELETE FROM user_subscriptions
+        WHERE user_id = ? AND channel_id = ?
+    ");
+    $stmt->bind_param("is", $user_id, $channel_id);
+    $result = $stmt->execute();
+    $stmt->close();
+    return $result;
+}
+
+$result = removeUserSubscription($user_id, $channel_id);
+
+if ($result) {
     echo json_encode(['status' => 'success']);
 } else {
     echo json_encode(['status' => 'error', 'message' => 'Failed to remove subscription']);

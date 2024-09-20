@@ -4,13 +4,20 @@ require_once 'db_connection.php';
 require_once 'functions.php';
 require_once 'vendor/autoload.php';
 
+header('Content-Type: application/json');
+
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['status' => 'error', 'message' => 'User not authenticated']);
     exit();
 }
 
 $user_id = $_SESSION['user_id'];
-$client = getGoogleClient();
+$client = getGoogleClient($user_id);
+
+if (!$client) {
+    echo json_encode(['status' => 'error', 'message' => 'Failed to get Google client']);
+    exit();
+}
 
 try {
     $youtube = new Google_Service_YouTube($client);
@@ -41,6 +48,7 @@ try {
     } while ($nextPageToken);
 
     updateUserLastSubscriptionsUpdate($user_id);
+    setSubscriptionsImported($user_id, true);
 
     echo json_encode(['status' => 'success', 'subscriptions' => $subscriptions]);
 } catch (Exception $e) {

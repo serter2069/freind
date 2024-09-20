@@ -1,4 +1,26 @@
 Список таблиц в базе данных:
+Таблица: messages
+  Колонка: id - int(11)
+  Колонка: sender_id - int(11)
+  Колонка: recipient_id - int(11)
+  Колонка: content - text
+  Колонка: created_at - timestamp
+  Колонка: read_at - timestamp
+
+Таблица: selected_files
+  Колонка: id - int(11)
+  Колонка: filename - varchar(255)
+  Колонка: is_selected - tinyint(1)
+  Колонка: last_modified - timestamp
+
+Таблица: user_cities
+  Колонка: id - int(11)
+  Колонка: user_id - int(11)
+  Колонка: place_id - varchar(255)
+  Колонка: city - varchar(255)
+  Колонка: state - varchar(255)
+  Колонка: country - varchar(255)
+
 Таблица: user_subscriptions
   Колонка: id - int(11)
   Колонка: user_id - int(11)
@@ -19,6 +41,27 @@
   Колонка: google_refresh_token - varchar(255)
   Колонка: subscriptions_processed - tinyint(1)
   Колонка: last_subscriptions_update - timestamp
+  Колонка: subscriptions_imported - tinyint(1)
+  Колонка: import_progress - int(11)
+  Колонка: total_subscriptions - int(11)
+  Колонка: import_status - enum('not_started','in_progress','completed','error')
+  Колонка: gender - enum('male','female','other')
+  Колонка: age - int(11)
+  Колонка: city - varchar(255)
+  Колонка: looking_for - enum('friends','partner','both','none')
+  Колонка: contact_method - enum('whatsapp','telegram','sms','call')
+  Колонка: phone_number - varchar(20)
+  Колонка: interests - text
+  Колонка: profile_picture - varchar(255)
+  Колонка: city_id - int(10) unsigned
+  Колонка: looking_for_partner - tinyint(1)
+  Колонка: partner_gender - json
+  Колонка: looking_for_friends - tinyint(1)
+  Колонка: friend_gender - json
+  Колонка: friend_activities - json
+  Колонка: telegram_hash - varchar(32)
+  Колонка: telegram_chat_id - varchar(255)
+  Колонка: telegram_notifications - tinyint(1)
 
 Таблица: youtube_channels
   Колонка: id - int(11)
@@ -30,9 +73,32 @@
   Колонка: video_count - int(11)
   Колонка: view_count - bigint(20)
   Колонка: created_at - timestamp
+  Колонка: banner_url - varchar(255)
+  Колонка: videos_imported - tinyint(1)
+  Колонка: banner_imported - tinyint(1)
+  Колонка: last_update - timestamp
+  Колонка: telegram_link - varchar(255)
+
+Таблица: youtube_videos
+  Колонка: id - int(11)
+  Колонка: channel_id - varchar(255)
+  Колонка: video_id - varchar(255)
+  Колонка: title - varchar(255)
+  Колонка: description - text
+  Колонка: thumbnail_url - varchar(255)
+  Колонка: published_at - datetime
 
 
 Связи между таблицами (Внешние ключи):
+Таблица: messages
+  Колонка: sender_id -> users(id)
+  Колонка: recipient_id -> users(id)
+
+Таблица: selected_files
+
+Таблица: user_cities
+  Колонка: user_id -> users(id)
+
 Таблица: user_subscriptions
   Колонка: user_id -> users(id)
   Колонка: channel_id -> youtube_channels(channel_id)
@@ -41,77 +107,273 @@
 
 Таблица: youtube_channels
 
+Таблица: youtube_videos
+  Колонка: channel_id -> youtube_channels(channel_id)
+
 
 Примеры данных из таблиц:
+Таблица: messages (Примеры записей)
+{
+    "id": "1",
+    "sender_id": "7",
+    "recipient_id": "9",
+    "content": "",
+    "created_at": "2024-09-20 03:10:21",
+    "read_at": "2024-09-20 09:02:32"
+}
+{
+    "id": "2",
+    "sender_id": "7",
+    "recipient_id": "9",
+    "content": "Привет",
+    "created_at": "2024-09-20 03:11:16",
+    "read_at": "2024-09-20 09:02:32"
+}
+{
+    "id": "3",
+    "sender_id": "7",
+    "recipient_id": "9",
+    "content": "Че как?",
+    "created_at": "2024-09-20 03:11:24",
+    "read_at": "2024-09-20 09:02:32"
+}
+
+Таблица: selected_files (Примеры записей)
+{
+    "id": "1",
+    "filename": "bubble.php",
+    "is_selected": "0",
+    "last_modified": "2024-09-15 23:35:14"
+}
+{
+    "id": "2",
+    "filename": "get_new_subscriptions.php",
+    "is_selected": "0",
+    "last_modified": "2024-09-15 23:35:14"
+}
+{
+    "id": "3",
+    "filename": "bubble.php",
+    "is_selected": "0",
+    "last_modified": "2024-09-15 23:35:25"
+}
+
+Таблица: user_cities (Примеры записей)
+{
+    "id": "6",
+    "user_id": "7",
+    "place_id": "ChIJybDUc_xKtUYRTM9XV8zWRD0",
+    "city": "Moscow",
+    "state": "Moscow",
+    "country": "Russia"
+}
+
 Таблица: user_subscriptions (Примеры записей)
 {
-    "id": "151",
-    "user_id": "10",
-    "channel_id": "UCNK0kzNrXAZjZWhuzrOzpXw",
-    "subscribed_at": "2024-09-07 23:46:36"
+    "id": "565",
+    "user_id": "7",
+    "channel_id": "UCiWMFQCGvwGSc8QWHOqcQhw",
+    "subscribed_at": "2024-09-15 02:22:41"
 }
 {
-    "id": "152",
-    "user_id": "10",
-    "channel_id": "UCn5oqeyuv6Tc9l-DoETVfAQ",
-    "subscribed_at": "2024-09-07 23:46:38"
+    "id": "566",
+    "user_id": "7",
+    "channel_id": "UCthfjHehYgSyhf8ONjzJMUw",
+    "subscribed_at": "2024-09-15 02:22:42"
 }
 {
-    "id": "153",
-    "user_id": "10",
-    "channel_id": "UC1eFXmJNkjITxPFWTy6RsWg",
-    "subscribed_at": "2024-09-07 23:46:39"
+    "id": "568",
+    "user_id": "7",
+    "channel_id": "UCDRVc_LN4TSbD86Rl18l9kQ",
+    "subscribed_at": "2024-09-15 02:22:44"
 }
 
 Таблица: users (Примеры записей)
 {
-    "id": "10",
-    "email": "serter2069@gmail.com",
-    "name": "Sergei Terekhov",
-    "google_user_id": "108701559029105801618",
+    "id": "7",
+    "email": "kosyakorel1@gmail.com",
+    "name": "Сергей Терехов kosyakorel1@gmail.com",
+    "google_user_id": "101644740656360440147",
     "password": "",
     "token": null,
-    "registration_date": "2024-09-07 23:46:34",
+    "registration_date": "2024-09-15 02:22:32",
     "email_activation_status": "not_activated",
     "timezone": "UTC",
     "preferred_language": "en",
-    "google_refresh_token": "1\/\/04AqRF8e5_2SFCgYIARAAGAQSNgF-L9IrfS5nbg9Z5o_L8yNeReyYmvod8wgcz8D48pXHc_YB0ogCqFUdKvw7kqKbHEdRasTGkw",
+    "google_refresh_token": "1\/\/04llKD2EeovsqCgYIARAAGAQSNwF-L9IrBg8a7O47Fzq2C15EoSn8Wz5wBd0lBPGti8SUvsVIiHglf_s3s2f_Tkz3bE37_-0RZ2w",
     "subscriptions_processed": "0",
-    "last_subscriptions_update": "2024-09-08 01:00:25"
+    "last_subscriptions_update": "2024-09-15 02:24:24",
+    "subscriptions_imported": "0",
+    "import_progress": "110",
+    "total_subscriptions": "110",
+    "import_status": "completed",
+    "gender": "",
+    "age": "42",
+    "city": null,
+    "looking_for": "none",
+    "contact_method": null,
+    "phone_number": null,
+    "interests": null,
+    "profile_picture": "https:\/\/lh3.googleusercontent.com\/a\/ACg8ocIVl7vUeNRsIT1_wAkDbP7_HjjPIoorPX1qLHdWUjMpyQNUoEt7=s96-c",
+    "city_id": null,
+    "looking_for_partner": "1",
+    "partner_gender": "[]",
+    "looking_for_friends": "1",
+    "friend_gender": "[]",
+    "friend_activities": "[]",
+    "telegram_hash": "c5ba14c59e1d3d79bfcc706c06b084c7",
+    "telegram_chat_id": "266835227",
+    "telegram_notifications": "1"
+}
+{
+    "id": "9",
+    "email": "serter2069@gmail.com",
+    "name": "Sergei Terekhov где ярик",
+    "google_user_id": "108701559029105801618",
+    "password": "",
+    "token": null,
+    "registration_date": "2024-09-15 23:42:08",
+    "email_activation_status": "not_activated",
+    "timezone": "UTC",
+    "preferred_language": "en",
+    "google_refresh_token": "1\/\/04wQR2u_aoA9ZCgYIARAAGAQSNgF-L9Ird52hPg2BgQMbNaELvTBGmG0kN9bR3xVr6FY10RH6iRcnGw7yRizHJe4YqpCHrxNOaA",
+    "subscriptions_processed": "0",
+    "last_subscriptions_update": "2024-09-15 23:42:08",
+    "subscriptions_imported": "0",
+    "import_progress": "235",
+    "total_subscriptions": "235",
+    "import_status": "completed",
+    "gender": "",
+    "age": null,
+    "city": null,
+    "looking_for": "none",
+    "contact_method": null,
+    "phone_number": null,
+    "interests": null,
+    "profile_picture": "https:\/\/lh3.googleusercontent.com\/a\/ACg8ocJEQpeqQEdJK9UYc0v9ebDcf4qYgZA74CGeInvRl3dCo6AX6w=s96-c",
+    "city_id": null,
+    "looking_for_partner": "0",
+    "partner_gender": "[]",
+    "looking_for_friends": "0",
+    "friend_gender": "[]",
+    "friend_activities": "[]",
+    "telegram_hash": "fc76b84066bdf6fcd64ee46e8d507df2",
+    "telegram_chat_id": "266835227",
+    "telegram_notifications": "0"
+}
+{
+    "id": "10",
+    "email": "opening-doors-vlog-f-52528347961391233@pages.plusgoogle.com",
+    "name": "Opening doors. Vlog for new opportunities.",
+    "google_user_id": "105614981314047272977",
+    "password": "",
+    "token": null,
+    "registration_date": "2024-09-16 02:11:51",
+    "email_activation_status": "not_activated",
+    "timezone": "UTC",
+    "preferred_language": "en",
+    "google_refresh_token": "1\/\/04il9NuD-wMXZCgYIARAAGAQSNwF-L9Iri3RxeZKy-B-g-Z3tLE-f51ZFvRh738H49QA9JsSX5eJ44NbljPPC7VLuosQ1nnj7sgk",
+    "subscriptions_processed": "0",
+    "last_subscriptions_update": "2024-09-16 02:11:51",
+    "subscriptions_imported": "0",
+    "import_progress": "16",
+    "total_subscriptions": "16",
+    "import_status": "completed",
+    "gender": null,
+    "age": null,
+    "city": null,
+    "looking_for": "none",
+    "contact_method": null,
+    "phone_number": null,
+    "interests": null,
+    "profile_picture": "https:\/\/lh3.googleusercontent.com\/a\/ACg8ocKA-MPRYaY3CP2iNfugudwwQB4-5Aj2dhCXEPrGAw-Bd7LpVQ=s96-c",
+    "city_id": null,
+    "looking_for_partner": "0",
+    "partner_gender": null,
+    "looking_for_friends": "0",
+    "friend_gender": null,
+    "friend_activities": null,
+    "telegram_hash": null,
+    "telegram_chat_id": null,
+    "telegram_notifications": "0"
 }
 
 Таблица: youtube_channels (Примеры записей)
 {
-    "id": "51",
-    "channel_id": "UCNK0kzNrXAZjZWhuzrOzpXw",
-    "title": "DONA Food 도나푸드",
-    "description": "DONA Food",
-    "thumbnail_url": "https:\/\/yt3.ggpht.com\/yoT8o5Zml8-jvpB4jz3lJEP855ctXpNXdhFGKwUqKE6J6P3QFyVpRT2VkcNfDFb3Uw128sae9Q=s88-c-k-c0x00ffffff-no-rj",
+    "id": "1",
+    "channel_id": "UCiWMFQCGvwGSc8QWHOqcQhw",
+    "title": "Радио Свобода",
+    "description": "Российское правительство объявило Радио Свободная Европа\/Радио Свобода нежелательной организацией. Если у вас есть российский паспорт или если вы лицо без гражданства и постоянно проживаете на территории России, пожалуйста, учтите, что вам грозит штраф или даже ограничение свободы за следующее: \n\n– шэры и репосты публикаций РСЕ\/РС  \n– лайки под постами РСЕ\/РС  \n– цитирование контента РСЕ\/РС  \n– комментарии под постами РСЕ\/РС \n– отправка сообщений РСЕ\/РС \n– воспроизведение логотипа РСЕ\/РС \n\nОднако вы можете безопасно нас читать, подписываться на нас, смотреть наши видео.",
+    "thumbnail_url": "https:\/\/yt3.ggpht.com\/5ZACYlUFpBSPO0b8DPxetdxbBrUE0CVKDJDpIc5uwme5ouOuPL9OvsBask1GHtrRMXjJIi3VuQ=s88-c-k-c0x00ffffff-no-rj",
     "subscriber_count": null,
     "video_count": null,
     "view_count": null,
-    "created_at": "2024-09-07 23:46:35"
+    "created_at": "2024-09-15 02:22:41",
+    "banner_url": "https:\/\/lh3.googleusercontent.com\/TITKur2zoH8Ljd8Y6LLhCCdv2hI0hFzGlokqbaoBhVop9Fp1POXUO2G6SqeRqbCCh6d1DsZiqg",
+    "videos_imported": "1",
+    "banner_imported": "1",
+    "last_update": null,
+    "telegram_link": "https:\/\/t.me\/bozhejakekonchene"
 }
 {
-    "id": "52",
-    "channel_id": "UCn5oqeyuv6Tc9l-DoETVfAQ",
-    "title": "Большой человек",
-    "description": "Большой человек, он же Шеф, он же Сергей Одесский – предприниматель из Санкт-Петербурга, неравнодушный ко всему, что связано с бизнесом и искусством ;)\n\nКанал создан, чтобы делится бизнес-идеями, секретами и фишками в самых разных сферах и нишах. Всё о предпринимательстве, деньгах и образе жизни предприимчивых россиян.",
-    "thumbnail_url": "https:\/\/yt3.ggpht.com\/ytc\/AIdro_myj7sIskwYJzqJZsKrFN1iyA8RZ1oWctt_q9jOHtGyuAE=s88-c-k-c0x00ffffff-no-rj",
+    "id": "2",
+    "channel_id": "UCthfjHehYgSyhf8ONjzJMUw",
+    "title": "Gazgolder",
+    "description": "",
+    "thumbnail_url": "https:\/\/yt3.ggpht.com\/nJRj111KDSS8jZ_YxWH1Bnl0Eh-xYtx7vCobI1pMRchiT23_YXtRY1v0vOir9_ZtxNb_a2ojIw=s88-c-k-c0x00ffffff-no-rj",
     "subscriber_count": null,
     "video_count": null,
     "view_count": null,
-    "created_at": "2024-09-07 23:46:37"
+    "created_at": "2024-09-15 02:22:42",
+    "banner_url": "https:\/\/yt3.googleusercontent.com\/cniFHb2rPOH4pE0rv9T7sCyWNHlMjOch08mPa8Oiy7pFlA0tmngXHXN4CgcuYAQJ8Fjb58jkioM",
+    "videos_imported": "1",
+    "banner_imported": "1",
+    "last_update": null,
+    "telegram_link": null
 }
 {
-    "id": "53",
-    "channel_id": "UC1eFXmJNkjITxPFWTy6RsWg",
-    "title": "Редакция",
-    "description": "YouTube-канал Алексея Пивоварова\n\nСотрудничество:\ninfo@redakciya.com\n\nРеклама:\nsales@redakciya.com",
-    "thumbnail_url": "https:\/\/yt3.ggpht.com\/ytc\/AIdro_kElZuLteoPcKZ07nm_u-agEOtsi2RTxfP0wRK-uD3r7B4=s88-c-k-c0x00ffffff-no-rj",
+    "id": "3",
+    "channel_id": "UCGSDJpG1YyXuOZ5lnt68LiA",
+    "title": "БЕРИ И ДЕЛАЙ – Дети",
+    "description": "Веселые идеи детских поделок и лайфхаков. Делайте вместе своими руками и получайте удовольствие!\n\nДля запросов по партнерству с брендом: https:\/\/www.thesoul-publishing.com\/partner\nДля сотрудничества: https:\/\/www.thesoul-publishing.com\/partner",
+    "thumbnail_url": "https:\/\/yt3.ggpht.com\/jgfNkfexQ0xBOue1534NURqibyt_hXZPuPYCrTuqwr6p4duC1TYDGneDxG5KaZu5Fl-bjTj7=s88-c-k-c0x00ffffff-no-rj",
     "subscriber_count": null,
     "video_count": null,
     "view_count": null,
-    "created_at": "2024-09-07 23:46:39"
+    "created_at": "2024-09-15 02:22:43",
+    "banner_url": "https:\/\/yt3.googleusercontent.com\/h98IjKFwXk6Ht3iLkSrpuSuHymNScdbzi6l30z2nefdB3-KBHtxE5DiClT5_P-fflETNJ9mo",
+    "videos_imported": "1",
+    "banner_imported": "1",
+    "last_update": null,
+    "telegram_link": null
+}
+
+Таблица: youtube_videos (Примеры записей)
+{
+    "id": "566",
+    "channel_id": "UCBYvr4SqfGQd5fTmOXVQ4Zw",
+    "video_id": "K0BoaJe_Ayg",
+    "title": "ЕСЛИ ЭТИ БАНКИ ВЫЖИВУТ, Я СЪЕМ ЛОЖКУ МАЙОНЕЗА! ",
+    "description": "БОТ ДЛЯ ДОНАТА В ИГРЫ - https:\/\/t.me\/lilpaybot ▶️ Telegram - https:\/\/t.me\/vladglenttg ▶️ VK - https:\/\/vk.com\/glent В этом ...",
+    "thumbnail_url": "https:\/\/i.ytimg.com\/vi\/K0BoaJe_Ayg\/mqdefault.jpg",
+    "published_at": "2024-09-14 13:00:18"
+}
+{
+    "id": "567",
+    "channel_id": "UCBYvr4SqfGQd5fTmOXVQ4Zw",
+    "video_id": "ZMx4G1IRil8",
+    "title": "НАЙДИ КНОПКУ, КОТОРАЯ ТЕБЯ СПАСЕТ ЧЕЛЛЕНДЖ! 100 КНОПОК В РОБЛОКС!",
+    "description": "Telegram - https:\/\/t.me\/vladglenttg ▶️ БОТ ДЛЯ ДОНАТА В ИГРЫ - https:\/\/t.me\/lilpaybot ▶️ VK - https:\/\/vk.com\/glent В этом ...",
+    "thumbnail_url": "https:\/\/i.ytimg.com\/vi\/ZMx4G1IRil8\/mqdefault.jpg",
+    "published_at": "2024-09-12 12:04:31"
+}
+{
+    "id": "568",
+    "channel_id": "UCBYvr4SqfGQd5fTmOXVQ4Zw",
+    "video_id": "rJC6opp290g",
+    "title": "ПОМОГИ ХЕРОБРИНУ СДЕЛАТЬ СТАТУЮ! #Shorts #Глент",
+    "description": "БОТ ДЛЯ ДОНАТА В ИГРЫ - https:\/\/t.me\/lilpaybot ▶️ Telegram - https:\/\/t.me\/vladglenttg ▶️ VK - https:\/\/vk.com\/glent В этом ...",
+    "thumbnail_url": "https:\/\/i.ytimg.com\/vi\/rJC6opp290g\/mqdefault.jpg",
+    "published_at": "2024-09-11 13:30:38"
 }
 
