@@ -2,7 +2,6 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-
 require_once 'db_connection.php';
 require_once 'translations.php';
 
@@ -14,6 +13,7 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 $error = '';
 $success = '';
+$username_error = '';
 
 $conn = getDbConnection();
 
@@ -21,7 +21,7 @@ function generateTelegramHash($user_id) {
     return hash('sha256', $user_id . time() . uniqid());
 }
 
-function updateUserProfileData($conn, $user_id, $name, $gender, $age, $looking_for_partner, $partner_gender, $looking_for_friends, $friend_gender, $friend_activities, $telegram_notifications) {
+function updateUserProfileData($conn, $user_id, $name, $gender, $age, $looking_for_partner, $partner_gender, $looking_for_friends, $friend_gender, $friend_activities, $telegram_notifications, $username) {
     $stmt = $conn->prepare("UPDATE users SET 
         name = ?, 
         gender = ?, 
@@ -31,14 +31,15 @@ function updateUserProfileData($conn, $user_id, $name, $gender, $age, $looking_f
         looking_for_friends = ?, 
         friend_gender = ?, 
         friend_activities = ?,
-        telegram_notifications = ?
+        telegram_notifications = ?,
+        username = ?
         WHERE id = ?");
     
     $partner_gender_json = json_encode($partner_gender);
     $friend_gender_json = json_encode($friend_gender);
     $friend_activities_json = json_encode($friend_activities);
     
-    $stmt->bind_param("ssiisissii", 
+    $stmt->bind_param("ssiisissisi", 
         $name, 
         $gender, 
         $age, 
@@ -48,6 +49,7 @@ function updateUserProfileData($conn, $user_id, $name, $gender, $age, $looking_f
         $friend_gender_json, 
         $friend_activities_json,
         $telegram_notifications,
+        $username,
         $user_id
     );
     
@@ -115,16 +117,34 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $friend_gender = $looking_for_friends ? ($_POST['friend_gender'] ?? []) : [];
     $friend_activities = $looking_for_friends ? ($_POST['friend_activities'] ?? []) : [];
     $telegram_notifications = isset($_POST['telegram_notifications']) ? 1 : 0;
-    
-    if (updateUserProfileData($conn, $user_id, $name, $gender, $age, $looking_for_partner, $partner_gender, $looking_for_friends, $friend_gender, $friend_activities, $telegram_notifications)) {
-        $success = __('profile_updated_successfully');
-    } else {
-        $error = __('error_updating_profile');
+    $username = trim($_POST['username'] ?? '');
+
+    if (!empty($username)) {
+        $stmt = $conn->prepare("SELECT id FROM users WHERE username = ? AND id != ?");
+        $stmt->bind_param("si", $username, $user_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        if ($result->num_rows > 0) {
+            $username_error = __('username_already_taken');
+        }
+        $stmt->close();
     }
 
-    // Обработка городов
-    $cities = isset($_POST['cities']) ? json_decode($_POST['cities'], true) : [];
-    updateUserCities($conn, $user_id, $cities);
+    if (empty($username_error)) {
+        if (updateUserProfileData($conn, $user_id, $name, $gender, $age, $looking_for_partner, $partner_gender, $looking_for_friends, $friend_gender, $friend_activities, $telegram_notifications, $username)) {
+            $success = __('profile_updated_successfully');
+            $user = getUserProfileData($conn, $user_id);
+        } else {
+            $error = __('error_updating_profile');
+        }
+
+        // Обработка городов
+        $cities = isset($_POST['cities']) ? json_decode($_POST['cities'], true) : [];
+        updateUserCities($conn, $user_id, $cities);
+    } else {
+        $error = $username_error;
+    }
 }
 
 $user = getUserProfileData($conn, $user_id);
@@ -145,145 +165,157 @@ include 'header.php';
 ?>
 
 <div class="container mt-4">
-    <h1><?php echo __('edit_profile'); ?></h1>
-    
-    <?php if ($error): ?>
-        <div class="alert alert-danger"><?php echo $error; ?></div>
-    <?php endif; ?>
-    
-    <?php if ($success): ?>
-        <div class="alert alert-success"><?php echo $success; ?></div>
-    <?php endif; ?>
-    
-    <form action="" method="post" id="editProfileForm">
-        <div class="mb-3">
-            <label for="name" class="form-label"><?php echo __('name'); ?></label>
-            <input type="text" class="form-control" id="name" name="name" value="<?php echo htmlspecialchars($user['name'] ?? ''); ?>" required>
-        </div>
-        
-        <div class="mb-3">
-            <label class="form-label"><?php echo __('gender'); ?></label>
-            <div class="btn-group" role="group">
-                <?php
-                $genders = ['male', 'female', 'other'];
-                foreach ($genders as $g) {
-                    echo '<input type="radio" class="btn-check" name="gender" id="' . $g . '" value="' . $g . '" ' . (($user['gender'] ?? '') == $g ? 'checked' : '') . '>';
-                    echo '<label class="btn btn-outline-primary" for="' . $g . '">' . __($g) . '</label>';
-                }
-                ?>
-            </div>
-        </div>
-        
-        <div class="mb-3">
-            <label class="form-label"><?php echo __('looking_for'); ?></label>
-            <div class="form-check form-switch custom-switch">
-                <input class="form-check-input" type="checkbox" id="lookingForPartner" name="looking_for_partner" value="1" <?php echo ($user['looking_for_partner'] ?? false) ? 'checked' : ''; ?>>
-                <label class="form-check-label" for="lookingForPartner"><?php echo __('partner'); ?></label>
-            </div>
-        </div>
-        
-        <div id="partnerPreferences" style="display: <?php echo ($user['looking_for_partner'] ?? false) ? 'block' : 'none'; ?>;">
-            <div class="mb-3">
-                <label class="form-label"><?php echo __('partner_gender'); ?></label>
-                <?php
-                $partner_genders = ['male', 'female', 'other'];
-                foreach ($partner_genders as $pg) {
-                    echo '<div class="form-check form-check-inline">';
-                    echo '<input class="form-check-input" type="checkbox" id="partnerGender_' . $pg . '" name="partner_gender[]" value="' . $pg . '" ' . (in_array($pg, $user['partner_gender'] ?? []) ? 'checked' : '') . '>';
-                    echo '<label class="form-check-label" for="partnerGender_' . $pg . '">' . __($pg) . '</label>';
-                    echo '</div>';
-                }
-                ?>
-            </div>
-        </div>
-        
-        <div class="mb-3">
-            <div class="form-check form-switch custom-switch">
-                <input class="form-check-input" type="checkbox" id="lookingForFriends" name="looking_for_friends" value="1" <?php echo ($user['looking_for_friends'] ?? false) ? 'checked' : ''; ?>>
-                <label class="form-check-label" for="lookingForFriends"><?php echo __('friends'); ?></label>
-            </div>
-        </div>
-        
-        <div id="friendPreferences" style="display: <?php echo ($user['looking_for_friends'] ?? false) ? 'block' : 'none'; ?>;">
-            <div class="mb-3">
-                <label class="form-label"><?php echo __('friend_gender'); ?></label>
-                <?php
-                $friend_genders = ['male', 'female', 'any'];
-                foreach ($friend_genders as $fg) {
-                    echo '<div class="form-check form-check-inline">';
-                    echo '<input class="form-check-input" type="checkbox" id="friendGender_' . $fg . '" name="friend_gender[]" value="' . $fg . '" ' . (in_array($fg, $user['friend_gender'] ?? []) ? 'checked' : '') . '>';
-                    echo '<label class="form-check-label" for="friendGender_' . $fg . '">' . __($fg) . '</label>';
-                    echo '</div>';
-                }
-                ?>
-            </div>
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <h1 class="text-center mb-4"><?php echo __('edit_profile'); ?></h1>
             
-            <div class="mb-3">
-                <label class="form-label"><?php echo __('friend_activities'); ?></label>
-                <div class="d-flex flex-wrap">
-                    <?php
-                    $activities = [
-                        'coffee' => '☕ ' . __('activity_coffee'),
-                        'drinks' => '🍻 ' . __('activity_drinks'),
-                        'walk' => '🚶 ' . __('activity_walk'),
-                        'sports' => '🏃 ' . __('activity_sports'),
-                        'movie' => '🎬 ' . __('activity_movie')
-                    ];
-                    foreach ($activities as $key => $label) {
-                        echo '<div class="form-check me-3 mb-2">';
-                        echo '<input class="form-check-input" type="checkbox" id="activity_' . $key . '" name="friend_activities[]" value="' . $key . '" ' . (in_array($key, $user['friend_activities'] ?? []) ? 'checked' : '') . '>';
-                        echo '<label class="form-check-label" for="activity_' . $key . '">' . $label . '</label>';
-                        echo '</div>';
-                    }
-                    ?>
+            <?php if ($error): ?>
+                <div class="alert alert-danger"><?php echo $error; ?></div>
+            <?php endif; ?>
+            
+            <?php if ($success): ?>
+                <div class="alert alert-success"><?php echo $success; ?></div>
+            <?php endif; ?>
+            
+            <form action="" method="post" id="editProfileForm">
+                <div class="mb-3">
+                    <label for="name" class="form-label"><?php echo __('name'); ?></label>
+                    <input type="text" class="form-control" id="name" name="name" value="<?php echo htmlspecialchars($user['name'] ?? ''); ?>" required>
+                </div>
+                
+                <div class="mb-3 position-relative">
+                    <label for="username" class="form-label"><?php echo __('username'); ?></label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="username" name="username" 
+                               value="<?php echo htmlspecialchars($user['username'] ?? ''); ?>" 
+                               placeholder="<?php echo __('create_username_placeholder'); ?>">
+                        <span class="input-group-text" id="usernameIcon"></span>
+                    </div>
+                    <div id="usernameStatus" class="invalid-feedback"></div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label"><?php echo __('gender'); ?></label>
+                    <div class="btn-group w-100" role="group">
+                        <?php
+                        $genders = ['male', 'female', 'other'];
+                        foreach ($genders as $g) {
+                            echo '<input type="radio" class="btn-check" name="gender" id="' . $g . '" value="' . $g . '" ' . (($user['gender'] ?? '') == $g ? 'checked' : '') . '>';
+                            echo '<label class="btn btn-outline-primary" for="' . $g . '">' . __($g) . '</label>';
+                        }
+                        ?>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label"><?php echo __('looking_for'); ?></label>
+                    <div class="form-check form-switch custom-switch">
+                        <input class="form-check-input" type="checkbox" id="lookingForPartner" name="looking_for_partner" value="1" <?php echo ($user['looking_for_partner'] ?? false) ? 'checked' : ''; ?>>
+                        <label class="form-check-label" for="lookingForPartner"><?php echo __('partner'); ?></label>
+                    </div>
+                </div>
+                
+                <div id="partnerPreferences" style="display: <?php echo ($user['looking_for_partner'] ?? false) ? 'block' : 'none'; ?>;">
+                    <div class="mb-3">
+                        <label class="form-label"><?php echo __('partner_gender'); ?></label>
+                        <?php
+                        $partner_genders = ['male', 'female', 'other'];
+                        foreach ($partner_genders as $pg) {
+                            echo '<div class="form-check form-check-inline">';
+                            echo '<input class="form-check-input" type="checkbox" id="partnerGender_' . $pg . '" name="partner_gender[]" value="' . $pg . '" ' . (in_array($pg, $user['partner_gender'] ?? []) ? 'checked' : '') . '>';
+                            echo '<label class="form-check-label" for="partnerGender_' . $pg . '">' . __($pg) . '</label>';
+                            echo '</div>';
+                        }
+                        ?>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="form-check form-switch custom-switch">
+                        <input class="form-check-input" type="checkbox" id="lookingForFriends" name="looking_for_friends" value="1" <?php echo ($user['looking_for_friends'] ?? false) ? 'checked' : ''; ?>>
+                        <label class="form-check-label" for="lookingForFriends"><?php echo __('friends'); ?></label>
+                    </div>
+                </div>
+                
+                <div id="friendPreferences" style="display: <?php echo ($user['looking_for_friends'] ?? false) ? 'block' : 'none'; ?>;">
+                    <div class="mb-3">
+                        <label class="form-label"><?php echo __('friend_gender'); ?></label>
+                        <?php
+                        $friend_genders = ['male', 'female', 'any'];
+                        foreach ($friend_genders as $fg) {
+                            echo '<div class="form-check form-check-inline">';
+                            echo '<input class="form-check-input" type="checkbox" id="friendGender_' . $fg . '" name="friend_gender[]" value="' . $fg . '" ' . (in_array($fg, $user['friend_gender'] ?? []) ? 'checked' : '') . '>';
+                            echo '<label class="form-check-label" for="friendGender_' . $fg . '">' . __($fg) . '</label>';
+                            echo '</div>';
+                        }
+                        ?>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label"><?php echo __('friend_activities'); ?></label>
+                        <div class="d-flex flex-wrap">
+                            <?php
+                            $activities = [
+                                'coffee' => '☕ ' . __('activity_coffee'),
+                                'drinks' => '🍻 ' . __('activity_drinks'),
+                                'walk' => '🚶 ' . __('activity_walk'),
+                                'sports' => '🏃 ' . __('activity_sports'),
+                                'movie' => '🎬 ' . __('activity_movie')
+                            ];
+                            foreach ($activities as $key => $label) {
+                                echo '<div class="form-check me-3 mb-2">';
+                                echo '<input class="form-check-input" type="checkbox" id="activity_' . $key . '" name="friend_activities[]" value="' . $key . '" ' . (in_array($key, $user['friend_activities'] ?? []) ? 'checked' : '') . '>';
+                                echo '<label class="form-check-label" for="activity_' . $key . '">' . $label . '</label>';
+                                echo '</div>';
+                            }
+                            ?>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="age" class="form-label"><?php echo __('age'); ?></label>
+                    <input type="number" class="form-control" id="age" name="age" value="<?php echo htmlspecialchars($user['age'] ?? ''); ?>" min="18" max="120">
+                </div>
+                
+                <div class="mb-3">
+                    <label for="cityInput" class="form-label"><?php echo __('cities'); ?> (<?php echo __('max_5'); ?>)</label>
+                    <input type="text" class="form-control" id="cityInput" placeholder="<?php echo __('enter_city'); ?>">
+                    <div id="selectedCities" class="mt-2">
+                        <?php foreach ($user['cities'] as $city): ?>
+                            <span class="badge bg-primary me-2 mb-2 city-badge" data-place-id="<?php echo htmlspecialchars($city['place_id']); ?>">
+                                <?php echo htmlspecialchars($city['city'] . ', ' . $city['state'] . ', ' . $city['country']); ?>
+                                <button type="button" class="btn-close btn-close-white" aria-label="Close" onclick="removeCity('<?php echo htmlspecialchars($city['place_id']); ?>')"></button>
+                            </span>
+                        <?php endforeach; ?>
+                    </div>
+                    <input type="hidden" name="cities" id="citiesInput" value="<?php echo htmlspecialchars(json_encode($user['cities'])); ?>">
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg w-100" id="saveButton"><?php echo __('save_changes'); ?></button>
+            </form>
+
+            <div class="card mt-4 mb-4">
+                <div class="card-header">
+                    <h3><?php echo __('telegram_notifications'); ?></h3>
+                </div>
+                <div class="card-body">
+                    <div id="telegramStatus" class="mt-3">
+                        <?php if ($userTelegramData['telegram_chat_id']): ?>
+                            <p class="text-success"><?php echo __('telegram_connected'); ?></p>
+                            <button type="button" class="btn btn-danger" id="telegramDisconnectBtn">
+                                <?php echo __('disconnect_telegram'); ?>
+                            </button>
+                        <?php else: ?>
+                            <p class="text-warning"><?php echo __('telegram_not_connected'); ?></p>
+                            <a href="https://t.me/<?php echo $botlink; ?>?start=<?php echo $userTelegramData['telegram_hash']; ?>" class="btn btn-primary" target="_blank" id="telegramConnectBtn">
+                                <?php echo __('connect_telegram'); ?>
+                            </a>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
         </div>
-        
-        <div class="mb-3">
-            <label for="age" class="form-label"><?php echo __('age'); ?></label>
-            <input type="number" class="form-control" id="age" name="age" value="<?php echo htmlspecialchars($user['age'] ?? ''); ?>" min="18" max="120">
-        </div>
-        
-        <div class="mb-3">
-            <label for="cityInput" class="form-label"><?php echo __('cities'); ?> (<?php echo __('max_5'); ?>)</label>
-            <input type="text" class="form-control" id="cityInput" placeholder="<?php echo __('enter_city'); ?>">
-            <div id="selectedCities" class="mt-2">
-                <?php foreach ($user['cities'] as $city): ?>
-                    <span class="badge bg-primary me-2 mb-2 city-badge" data-place-id="<?php echo htmlspecialchars($city['place_id']); ?>">
-                        <?php echo htmlspecialchars($city['city'] . ', ' . $city['state'] . ', ' . $city['country']); ?>
-                        <button type="button" class="btn-close btn-close-white" aria-label="Close" onclick="removeCity('<?php echo htmlspecialchars($city['place_id']); ?>')"></button>
-                    </span>
-                <?php endforeach; ?>
-            </div>
-            <input type="hidden" name="cities" id="citiesInput" value="<?php echo htmlspecialchars(json_encode($user['cities'])); ?>">
-        </div>
-        
-        <button type="submit" class="btn btn-primary btn-lg"><?php echo __('save_changes'); ?></button>
-    </form>
-
-    <div class="card mt-4 mb-4">
-    <div class="card-header">
-        <h3><?php echo __('telegram_notifications'); ?></h3>
     </div>
-    <div class="card-body">
-        <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" id="telegramNotifications" name="telegram_notifications" <?php echo $userTelegramData['telegram_notifications'] ? 'checked' : ''; ?>>
-            <label class="form-check-label" for="telegramNotifications"><?php echo __('enable_telegram_notifications'); ?></label>
-        </div>
-        <div id="telegramStatus" class="mt-3">
-            <?php if ($userTelegramData['telegram_chat_id']): ?>
-                <p class="text-success"><?php echo __('telegram_connected'); ?></p>
-            <?php else: ?>
-                <p class="text-warning"><?php echo __('telegram_not_connected'); ?></p>
-                <a href="https://t.me/<?php echo $botlink; ?>?start=<?php echo $userTelegramData['telegram_hash']; ?>" class="btn btn-primary" target="_blank" id="telegramConnectBtn">
-                    <?php echo __('connect_telegram'); ?>
-                </a>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
-
 </div>
 
 <style>
@@ -302,6 +334,21 @@ include 'header.php';
 .city-badge .btn-close {
     font-size: 0.5em;
     margin-left: 0.5em;
+}
+.input-group-text {
+    background: none;
+    border: none;
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 4;
+}
+#username {
+    padding-right: 40px;
+}
+.invalid-feedback {
+    display: block;
 }
 </style>
 
@@ -348,24 +395,72 @@ $(document).ready(function() {
     $('#partnerPreferences').toggle($('#lookingForPartner').is(':checked'));
     $('#friendPreferences').toggle($('#lookingForFriends').is(':checked'));
 
-    $('#editProfileForm').submit(function(e) {
-        console.log('Form submitted');
-        console.log('Form data:', $(this).serialize());
+    var usernameTimer;
+    $('#username').on('input', function() {
+        clearTimeout(usernameTimer);
+        var username = $(this).val().trim();
+        var $status = $('#usernameStatus');
+        var $icon = $('#usernameIcon');
+        var $saveButton = $('#saveButton');
+        var $usernameInput = $('#username');
+
+        if (username === '') {
+            $status.text('').hide();
+            $icon.html('').hide();
+            $usernameInput.removeClass('is-invalid is-valid');
+            $saveButton.prop('disabled', false);
+            return;
+        }
+
+        usernameTimer = setTimeout(function() {
+            $.ajax({
+                url: 'check_username.php',
+                method: 'POST',
+                data: { username: username },
+                dataType: 'json',
+                success: function(response) {
+                    if (response.status === 'success') {
+                        $status.text('').hide();
+
+                        $usernameInput.removeClass('is-invalid').addClass('is-valid');
+                        $saveButton.prop('disabled', false);
+                    } else {
+                        $status.text(response.message).show();
+
+                        $usernameInput.removeClass('is-valid').addClass('is-invalid');
+                        $saveButton.prop('disabled', true);
+                    }
+                },
+                error: function() {
+                    $status.text('Error checking username').show();
+                    $icon.html('!').removeClass('text-success').addClass('text-danger').show();
+                    $usernameInput.removeClass('is-valid').addClass('is-invalid');
+                    $saveButton.prop('disabled', true);
+                }
+            });
+        }, 500);
     });
 
-   $('#telegramNotifications').change(function() {
-    var enabled = $(this).is(':checked');
-    $.ajax({
-        url: 'update_telegram_status.php',
-        method: 'POST',
-        data: { enabled: enabled },
-        dataType: 'json',
-        success: function(response) {
-            console.log('Server response:', response);
-            if (response.success) {
-                if (response.enabled) {
-                    $('#telegramStatus').html('<p class="text-success"><?php echo __('telegram_connected'); ?></p>');
-                } else {
+    $('#editProfileForm').submit(function(e) {
+        if ($('#saveButton').prop('disabled')) {
+            e.preventDefault();
+            $('html, body').animate({
+                scrollTop: $('#username').offset().top - 100
+            }, 500, function() {
+                $('#username').focus();
+            });
+        }
+    });
+
+    $('#telegramDisconnectBtn').click(function() {
+        $.ajax({
+            url: 'update_telegram_status.php',
+            method: 'POST',
+            data: { action: 'disconnect' },
+            dataType: 'json',
+            success: function(response) {
+                console.log('Server response:', response);
+                if (response.success) {
                     var newHtml = `
                         <p class="text-warning"><?php echo __('telegram_not_connected'); ?></p>
                         <a href="https://t.me/<?php echo $botlink; ?>?start=${response.newHash}" class="btn btn-primary" target="_blank" id="telegramConnectBtn">
@@ -373,24 +468,17 @@ $(document).ready(function() {
                         </a>
                     `;
                     $('#telegramStatus').html(newHtml);
+                    $('#telegramNotifications').prop('checked', false);
+                } else {
+                    alert('<?php echo __('error_disconnecting_telegram'); ?>');
                 }
-                // Обновляем состояние чекбокса
-                $('#telegramNotifications').prop('checked', response.enabled);
-            } else {
-                alert('<?php echo __('error_updating_telegram_settings'); ?>');
-                // Возвращаем чекбокс в исходное состояние
-                $('#telegramNotifications').prop('checked', !enabled);
+            },
+            error: function(xhr, status, error) {
+                console.error('AJAX error:', status, error);
+                alert('<?php echo __('error_disconnecting_telegram'); ?>');
             }
-        },
-        error: function(xhr, status, error) {
-            console.error('AJAX error:', status, error);
-            alert('<?php echo __('error_updating_telegram_settings'); ?>');
-            // Возвращаем чекбокс в исходное состояние
-            $('#telegramNotifications').prop('checked', !enabled);
-        }
+        });
     });
-});
- 
 });
 
 function addCity(placeId, cityName, stateName, countryName) {
@@ -424,5 +512,16 @@ function removeCity(placeId) {
     $('.city-badge[data-place-id="' + placeId + '"]').remove();
 }
 </script>
+
+<?php if (!empty($username_error)): ?>
+<script>
+$(document).ready(function() {
+    $('#usernameStatus').text('<?php echo $username_error; ?>').show();
+
+    $('#username').addClass('is-invalid');
+    $('#saveButton').prop('disabled', true);
+});
+</script>
+<?php endif; ?>
 
 <?php include 'footer.php'; ?>

@@ -196,7 +196,7 @@ include 'header.php';
                                             <?php echo htmlspecialchars(substr($subscription['description'], 0, 100) . '...'); ?>
                                         </p>
                                         <div class="subscription-actions">
-                                            <a href="people.php?channels[]=<?php echo $subscription['id']; ?>" class="btn btn-outline-primary btn-sm">
+                                            <a href="people.php?channels=<?php echo $subscription['id']; ?>" class="btn btn-outline-primary btn-sm">
                                                 <?php echo __('find_people'); ?>
                                             </a>
                                             <?php if (!empty($subscription['telegram_link'])): ?>

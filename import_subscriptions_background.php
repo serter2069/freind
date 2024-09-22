@@ -36,8 +36,7 @@ function getGoogleClient($user_id) {
     return $client;
 }
 
-function saveOrUpdateChannel($channelData) {
-    global $conn;
+function saveOrUpdateChannel($conn, $channelData) {
     $stmt = $conn->prepare("
         INSERT INTO youtube_channels (channel_id, title, description, thumbnail_url)
         VALUES (?, ?, ?, ?)
@@ -51,8 +50,7 @@ function saveOrUpdateChannel($channelData) {
     $stmt->close();
 }
 
-function addUserSubscription($user_id, $channel_id) {
-    global $conn;
+function addUserSubscription($conn, $user_id, $channel_id) {
     $stmt = $conn->prepare("
         INSERT IGNORE INTO user_subscriptions (user_id, channel_id)
         VALUES (?, ?)
@@ -62,23 +60,33 @@ function addUserSubscription($user_id, $channel_id) {
     $stmt->close();
 }
 
-function updateImportProgress($user_id, $imported_count) {
-    global $conn;
-    $stmt = $conn->prepare("UPDATE users SET import_progress = ? WHERE id = ?");
-    $stmt->bind_param("ii", $imported_count, $user_id);
+function updateImportProgress($conn, $user_id, $imported_count, $total_count) {
+    $stmt = $conn->prepare("
+        UPDATE users 
+        SET import_progress = ?, 
+            total_subscriptions = ?,
+            last_subscriptions_update = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ");
+    $stmt->bind_param("iii", $imported_count, $total_count, $user_id);
     $stmt->execute();
     $stmt->close();
 }
 
-function updateImportStatus($user_id, $status, $imported_count, $total_count) {
-    global $conn;
-    $stmt = $conn->prepare("UPDATE users SET import_status = ?, import_progress = ?, total_subscriptions = ? WHERE id = ?");
-    $stmt->bind_param("siii", $status, $imported_count, $total_count, $user_id);
+function finalizeImport($conn, $user_id, $status) {
+    $stmt = $conn->prepare("
+        UPDATE users 
+        SET import_status = ?,
+            subscriptions_imported = 1
+        WHERE id = ?
+    ");
+    $stmt->bind_param("si", $status, $user_id);
     $stmt->execute();
     $stmt->close();
 }
 
 try {
+    $conn = getDbConnection();
     $google_client = getGoogleClient($user_id);
     if (!$google_client) {
         throw new Exception('Failed to get Google client for user ' . $user_id);
@@ -105,19 +113,21 @@ try {
                 'thumbnail_url' => $subscription->getSnippet()->getThumbnails()->getDefault()->getUrl()
             ];
             
-            saveOrUpdateChannel($channel_data);
-            addUserSubscription($user_id, $channel_id);
+            saveOrUpdateChannel($conn, $channel_data);
+            addUserSubscription($conn, $user_id, $channel_id);
             
             $imported_count++;
-            updateImportProgress($user_id, $imported_count);
+            updateImportProgress($conn, $user_id, $imported_count, $subscriptions_response->getPageInfo()->getTotalResults());
         }
 
         $page_token = $subscriptions_response->getNextPageToken();
     } while ($page_token);
 
-    updateImportStatus($user_id, 'completed', $imported_count, $imported_count);
+    finalizeImport($conn, $user_id, 'completed');
     error_log("Import completed for user {$user_id}. Total imported: {$imported_count}");
 } catch (Exception $e) {
     error_log("Error during import for user {$user_id}: " . $e->getMessage());
-    updateImportStatus($user_id, 'error', $imported_count ?? 0, $imported_count ?? 0);
+    finalizeImport($conn, $user_id, 'error');
 }
+
+$conn->close();

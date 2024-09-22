@@ -9,13 +9,22 @@ include 'header.php';
 // Функция для получения информации о городе по place_id
 function getCityInfo($place_id) {
     global $conn;
-    $stmt = $conn->prepare("SELECT city, state, country FROM user_cities WHERE place_id = ? LIMIT 1");
+    $stmt = $conn->prepare("SELECT city, state, country FROM selected_cities WHERE place_id = ? LIMIT 1");
     $stmt->bind_param("s", $place_id);
     $stmt->execute();
     $result = $stmt->get_result();
     $city_info = $result->fetch_assoc();
     $stmt->close();
     return $city_info;
+}
+
+// Функция для сохранения информации о городе
+function saveCityInfo($place_id, $city, $state, $country) {
+    global $conn;
+    $stmt = $conn->prepare("INSERT INTO selected_cities (place_id, city, state, country) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE city = ?, state = ?, country = ?");
+    $stmt->bind_param("sssssss", $place_id, $city, $state, $country, $city, $state, $country);
+    $stmt->execute();
+    $stmt->close();
 }
 
 // Функция для получения отфильтрованных пользователей
@@ -30,7 +39,11 @@ function getFilteredUsers($cities, $channels, $looking_for_friends, $looking_for
               WHERE 1=1";
     $params = [];
     $types = "";
-    
+    if (isset($_SESSION['user_id'])) {
+        $query .= " AND u.id != ?";
+        $params[] = $_SESSION['user_id'];
+        $types .= "i";
+    }
     if (!empty($cities)) {
         $cityPlaceholders = implode(',', array_fill(0, count($cities), '?'));
         $query .= " AND uc.place_id IN ($cityPlaceholders)";
@@ -133,6 +146,15 @@ foreach ($cities as $city_id) {
         $city_names[$city_id] = $city_info['city'] . 
                                 ($city_info['state'] ? ', ' . $city_info['state'] : '') . 
                                 ', ' . $city_info['country'];
+    } else {
+        // Если информации о городе нет в базе, попробуем получить ее через API
+        $city_info = getGooglePlaceInfo($city_id);
+        if ($city_info) {
+            saveCityInfo($city_id, $city_info['city'], $city_info['state'], $city_info['country']);
+            $city_names[$city_id] = $city_info['city'] . 
+                                    ($city_info['state'] ? ', ' . $city_info['state'] : '') . 
+                                    ', ' . $city_info['country'];
+        }
     }
 }
 
@@ -157,6 +179,40 @@ function getChannelById($id) {
     $stmt->close();
     return $channel;
 }
+
+// Функция для получения информации о месте через Google Places API
+function getGooglePlaceInfo($place_id) {
+    $api_key = GOOGLE_API_KEY_FOR_PLACES;
+    $url = "https://maps.googleapis.com/maps/api/place/details/json?place_id=$place_id&fields=address_component&key=$api_key";
+    
+    $response = file_get_contents($url);
+    $result = json_decode($response, true);
+    
+    if ($result['status'] === 'OK') {
+        $city = '';
+        $state = '';
+        $country = '';
+        
+        foreach ($result['result']['address_components'] as $component) {
+            if (in_array('locality', $component['types'])) {
+                $city = $component['long_name'];
+            } elseif (in_array('administrative_area_level_1', $component['types'])) {
+                $state = $component['long_name'];
+            } elseif (in_array('country', $component['types'])) {
+                $country = $component['long_name'];
+            }
+        }
+        
+        return [
+            'city' => $city,
+            'state' => $state,
+            'country' => $country
+        ];
+    }
+    
+    return null;
+}
+
 ?>
 
 <div class="container-fluid mt-4">
@@ -417,7 +473,8 @@ $(document).ready(function() {
             delay: 250,
             data: function (params) {
                 return {
-                    q: params.term
+                    q: params.term,
+                    excluded_channels: $('#channelsInput').val()
                 };
             },
             processResults: function (data) {

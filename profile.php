@@ -20,9 +20,9 @@ function getUserById($user_id) {
     $user = $result->fetch_assoc();
     
     if ($user) {
-        $user['partner_gender'] = !is_null($user['partner_gender']) ? json_decode($user['partner_gender'], true) : [];
-        $user['friend_gender'] = !is_null($user['friend_gender']) ? json_decode($user['friend_gender'], true) : [];
-        $user['friend_activities'] = !is_null($user['friend_activities']) ? json_decode($user['friend_activities'], true) : [];
+        $user['partner_gender'] = json_decode($user['partner_gender'] ?? '[]', true);
+        $user['friend_gender'] = json_decode($user['friend_gender'] ?? '[]', true);
+        $user['friend_activities'] = json_decode($user['friend_activities'] ?? '[]', true);
     }
     
     return $user;
@@ -41,7 +41,8 @@ function getCommonSubscriptions($user_id1, $user_id2) {
     $sql = "SELECT s.* FROM user_subscriptions us1
             JOIN user_subscriptions us2 ON us1.channel_id = us2.channel_id
             JOIN youtube_channels s ON us1.channel_id = s.channel_id
-            WHERE us1.user_id = ? AND us2.user_id = ?";
+            WHERE us1.user_id = ? AND us2.user_id = ?
+            ORDER BY s.title";
     
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("ii", $user_id1, $user_id2);
@@ -81,8 +82,6 @@ function getUserSubscriptionsPaginated($user_id, $limit, $offset) {
     return $subscriptions;
 }
 
-$subscriptions = getUserSubscriptionsPaginated($profile_id, $per_page, $offset);
-
 function getTotalUserSubscriptions($user_id) {
     global $conn;
     $stmt = $conn->prepare("SELECT COUNT(*) as total FROM user_subscriptions WHERE user_id = ?");
@@ -94,10 +93,10 @@ function getTotalUserSubscriptions($user_id) {
     return $row['total'];
 }
 
+$subscriptions = getUserSubscriptionsPaginated($profile_id, $per_page, $offset);
 $total_subscriptions = getTotalUserSubscriptions($profile_id);
 $total_pages = ceil($total_subscriptions / $per_page);
 
-// Получаем общие подписки, если пользователь авторизован и просматривает чужой профиль
 $common_subscriptions = [];
 if (!$is_own_profile && isset($_SESSION['user_id'])) {
     $common_subscriptions = getCommonSubscriptions($_SESSION['user_id'], $profile_id);
@@ -111,16 +110,14 @@ include 'header.php';
     <div class="row">
         <div class="col-md-4">
             <div class="card">
-                <img src="<?php echo $user['profile_picture'] ?: 'images/default_avatar.png'; ?>" alt="<?php echo htmlspecialchars($user['name']); ?>" class="card-img-top">
+                <img src="<?php echo htmlspecialchars($user['profile_picture'] ?? 'images/default_avatar.png'); ?>" 
+                     alt="<?php echo htmlspecialchars($user['name'] ?? ''); ?>" 
+                     class="card-img-top">
                 <div class="card-body">
-                    <h1 class="card-title"><?php echo htmlspecialchars($user['name']); ?></h1>
-                    <p class="card-text"><strong><?php echo __('email'); ?>:</strong> <?php echo htmlspecialchars($user['email']); ?></p>
-                    <?php if ($user['gender']): ?>
-                        <p class="card-text"><strong><?php echo __('gender'); ?>:</strong> <?php echo __($user['gender']); ?></p>
-                    <?php endif; ?>
-                    <?php if ($user['age']): ?>
-                        <p class="card-text"><strong><?php echo __('age'); ?>:</strong> <?php echo $user['age']; ?></p>
-                    <?php endif; ?>
+                    <h1 class="card-title"><?php echo htmlspecialchars($user['name'] ?? ''); ?></h1>
+                    <p class="card-text"><strong><?php echo __('email'); ?>:</strong> <?php echo htmlspecialchars($user['email'] ?? ''); ?></p>
+                    <p class="card-text"><strong><?php echo __('gender'); ?>:</strong> <?php echo $user['gender'] ? __($user['gender']) : __('not_specified'); ?></p>
+                    <p class="card-text"><strong><?php echo __('age'); ?>:</strong> <?php echo $user['age'] ?: __('not_specified'); ?></p>
                     <?php if (!empty($user['city_id'])): ?>
                         <?php 
                         $stmt = $conn->prepare("SELECT name, country FROM cities WHERE id = ?");
@@ -134,26 +131,22 @@ include 'header.php';
                             <p class="card-text"><strong><?php echo __('city'); ?>:</strong> <?php echo htmlspecialchars($city['name'] . ', ' . $city['country']); ?></p>
                         <?php endif; ?>
                     <?php endif; ?>
-                    <?php if ($user['looking_for_partner']): ?>
-                        <p class="card-text"><strong><?php echo __('looking_for_partner'); ?>:</strong> <?php echo __('yes'); ?></p>
-                        <?php if (!empty($user['partner_gender'])): ?>
-                            <p class="card-text"><strong><?php echo __('partner_gender'); ?>:</strong> 
-                                <?php echo implode(', ', array_map(function($gender) { return __($gender); }, $user['partner_gender'])); ?>
-                            </p>
-                        <?php endif; ?>
+                    <p class="card-text"><strong><?php echo __('looking_for_partner'); ?>:</strong> <?php echo $user['looking_for_partner'] ? __('yes') : __('no'); ?></p>
+                    <?php if ($user['looking_for_partner'] && !empty($user['partner_gender'])): ?>
+                        <p class="card-text"><strong><?php echo __('partner_gender'); ?>:</strong> 
+                            <?php echo implode(', ', array_map(function($gender) { return __($gender); }, $user['partner_gender'])); ?>
+                        </p>
                     <?php endif; ?>
-                    <?php if ($user['looking_for_friends']): ?>
-                        <p class="card-text"><strong><?php echo __('looking_for_friends'); ?>:</strong> <?php echo __('yes'); ?></p>
-                        <?php if (!empty($user['friend_gender'])): ?>
-                            <p class="card-text"><strong><?php echo __('friend_gender'); ?>:</strong> 
-                                <?php echo implode(', ', array_map(function($gender) { return __($gender); }, $user['friend_gender'])); ?>
-                            </p>
-                        <?php endif; ?>
-                        <?php if (!empty($user['friend_activities'])): ?>
-                            <p class="card-text"><strong><?php echo __('friend_activities'); ?>:</strong> 
-                                <?php echo implode(', ', array_map(function($activity) { return __('activity_' . $activity); }, $user['friend_activities'])); ?>
-                            </p>
-                        <?php endif; ?>
+                    <p class="card-text"><strong><?php echo __('looking_for_friends'); ?>:</strong> <?php echo $user['looking_for_friends'] ? __('yes') : __('no'); ?></p>
+                    <?php if ($user['looking_for_friends'] && !empty($user['friend_gender'])): ?>
+                        <p class="card-text"><strong><?php echo __('friend_gender'); ?>:</strong> 
+                            <?php echo implode(', ', array_map(function($gender) { return __($gender); }, $user['friend_gender'])); ?>
+                        </p>
+                    <?php endif; ?>
+                    <?php if ($user['looking_for_friends'] && !empty($user['friend_activities'])): ?>
+                        <p class="card-text"><strong><?php echo __('friend_activities'); ?>:</strong> 
+                            <?php echo implode(', ', array_map(function($activity) { return __('activity_' . $activity); }, $user['friend_activities'])); ?>
+                        </p>
                     <?php endif; ?>
                     <?php if ($is_own_profile): ?>
                         <a href="edit_profile.php" class="btn btn-primary"><?php echo __('edit_profile'); ?></a>
@@ -168,27 +161,59 @@ include 'header.php';
             <?php endif; ?>
         </div>
         <div class="col-md-8">
+
+        <?php if (!empty($user['ai_generated_description'])): ?>
+    <div class="card mb-4 mt-4">
+        <div class="card-header bg-info text-white">
+            <h2 class="mb-0">
+                <i class="fas fa-user-circle"></i> <?php echo __('user_description'); ?>
+            </h2>
+        </div>
+        <div class="card-body">
+            <p><?php echo nl2br(htmlspecialchars($user['ai_generated_description'])); ?></p>
+            <p class="text-muted mt-2" style="font-size: 0.8em;">
+                <i class="fas fa-robot"></i> <?php echo __('ai_generated_disclaimer'); ?>
+            </p>
+        </div>
+    </div>
+<?php endif; ?>
+            
             <?php if (!empty($common_subscriptions)): ?>
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h3><?php echo __('common_subscriptions'); ?></h3>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <?php foreach ($common_subscriptions as $subscription): ?>
-                        <div class="col-md-4 mb-3">
-                            <div class="card h-100">
-                                <img src="<?php echo htmlspecialchars($subscription['thumbnail_url']); ?>" class="card-img-top" alt="<?php echo htmlspecialchars($subscription['title']); ?>">
-                                <div class="card-body">
-                                    <h5 class="card-title"><?php echo htmlspecialchars($subscription['title']); ?></h5>
-                                    <a href="bubble.php?id=<?php echo $subscription['id']; ?>" class="btn btn-primary btn-sm"><?php echo __('view_bubble'); ?></a>
+                <div class="card mb-4 mt-4 border-primary" id="commonInterests">
+                    <div class="card-header bg-primary text-white">
+                        <h2 class="mb-0">
+                            <i class="fas fa-star"></i> <?php echo __('common_interests'); ?>
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <p class="lead"><?php echo __('you_have_x_common_interests', ['count' => count($common_subscriptions)]); ?></p>
+                        <div class="row">
+                            <?php foreach ($common_subscriptions as $subscription): ?>
+                            <div class="col-md-4 mb-3">
+                                <div class="card h-100 common-subscription-card">
+                                    <div class="card-body text-center">
+                                        <div class="channel-image-wrapper mb-2">
+                                            <img src="<?php echo htmlspecialchars($subscription['thumbnail_url']); ?>" 
+                                                 alt="<?php echo htmlspecialchars($subscription['title']); ?>"
+                                                 class="channel-image">
+                                        </div>
+                                        <h5 class="card-title"><?php echo htmlspecialchars($subscription['title']); ?></h5>
+                                        <a href="bubble.php?id=<?php echo $subscription['id']; ?>" class="btn btn-primary btn-sm"><?php echo __('view_bubble'); ?></a>
+                                    </div>
                                 </div>
                             </div>
+                            <?php endforeach; ?>
                         </div>
-                        <?php endforeach; ?>
+                        <?php if (!$is_own_profile): ?>
+                            <div class="text-center mt-3">
+                                 <p class="mb-3"><?php echo __('common_interests_explanation', ['name' => $user['name']]); ?></p>
+                                <a href="messages.php?action=write&user=<?php echo $profile_id; ?>" class="btn btn-primary">
+                                    <?php echo __('write_message'); ?>
+                                </a>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
-            </div>
             <?php endif; ?>
 
             <div class="d-flex justify-content-between align-items-center mb-3">
@@ -220,7 +245,7 @@ include 'header.php';
                                     <?php endif; ?>
                                 </p>
                                 <div class="mt-2">
-                                    <a href="https://svpmodels.com/people.php?channels=<?php echo $subscription['id']; ?>" class="btn btn-sm btn-primary"><?php echo __('find_people'); ?></a>
+                                    <a href="people.php?channels=<?php echo $subscription['id']; ?>" class="btn btn-sm btn-primary"><?php echo __('find_people'); ?></a>
                                     <?php if (!empty($subscription['telegram_link'])): ?>
                                         <?php
                                         $telegram_link = $subscription['telegram_link'];
@@ -261,6 +286,7 @@ include 'header.php';
             <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
         </div>
         <div class="toast-body">
+        <div class="toast-body">
             <?php echo __('profile_link_copied'); ?>
         </div>
     </div>
@@ -268,7 +294,8 @@ include 'header.php';
 
 <style>
 .subscription-list {
-    /* Скролл убран */
+    max-height: 600px;
+    overflow-y: auto;
 }
 .subscription-item {
     transition: background-color 0.3s;
@@ -298,6 +325,24 @@ include 'header.php';
 .full-description {
     white-space: pre-wrap;
 }
+.common-subscription-card {
+    transition: transform 0.3s ease-in-out;
+}
+.common-subscription-card:hover {
+    transform: scale(1.05);
+}
+.channel-image-wrapper {
+    width: 88px;
+    height: 88px;
+    margin: 0 auto;
+    overflow: hidden;
+    border-radius: 50%;
+}
+.channel-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
 </style>
 
 <script>
@@ -326,6 +371,21 @@ document.querySelectorAll('.toggle-description').forEach(function(toggle) {
             this.textContent = '<?php echo __('read_more'); ?>';
         }
     });
+});
+
+// Анимация для общих интересов
+document.addEventListener('DOMContentLoaded', function() {
+    var commonInterestsCard = document.getElementById('commonInterests');
+    if (commonInterestsCard) {
+        commonInterestsCard.style.opacity = '0';
+        commonInterestsCard.style.transform = 'translateY(20px)';
+        commonInterestsCard.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-out';
+        
+        setTimeout(function() {
+            commonInterestsCard.style.opacity = '1';
+            commonInterestsCard.style.transform = 'translateY(0)';
+        }, 300);
+    }
 });
 </script>
 

@@ -11,9 +11,12 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 
-function getImportStatus($user_id) {
-    global $conn;
-    $stmt = $conn->prepare("SELECT import_status, import_progress, total_subscriptions FROM users WHERE id = ?");
+function getImportStatus($conn, $user_id) {
+    $stmt = $conn->prepare("
+        SELECT import_status, import_progress, total_subscriptions, subscriptions_imported
+        FROM users
+        WHERE id = ?
+    ");
     $stmt->bind_param("i", $user_id);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -25,7 +28,8 @@ function getImportStatus($user_id) {
             'status' => $row['import_status'],
             'imported' => $row['import_progress'],
             'total' => $row['total_subscriptions'],
-            'progress' => $row['total_subscriptions'] > 0 ? round(($row['import_progress'] / $row['total_subscriptions']) * 100, 2) : 0
+            'progress' => $row['total_subscriptions'] > 0 ? round(($row['import_progress'] / $row['total_subscriptions']) * 100, 2) : 0,
+            'completed' => $row['subscriptions_imported'] == 1
         ];
     }
     
@@ -33,12 +37,14 @@ function getImportStatus($user_id) {
         'status' => 'not_started',
         'imported' => 0,
         'total' => 0,
-        'progress' => 0
+        'progress' => 0,
+        'completed' => false
     ];
 }
 
 try {
-    $import_status = getImportStatus($user_id);
+    $conn = getDbConnection();
+    $import_status = getImportStatus($conn, $user_id);
     echo json_encode($import_status);
 } catch (Exception $e) {
     error_log('Error in check_import_progress.php: ' . $e->getMessage());

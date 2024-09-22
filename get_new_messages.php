@@ -1,7 +1,8 @@
 <?php
 session_start();
 require_once 'db_connection.php';
-require_once 'functions.php';
+
+header('Content-Type: application/json');
 
 if (!isset($_SESSION['user_id']) || !isset($_GET['user']) || !isset($_GET['last_time'])) {
     echo json_encode(['status' => 'error', 'message' => 'Invalid request']);
@@ -55,21 +56,9 @@ $stmt->close();
 
 $conn->close();
 
-// Форматируем сообщения для ответа
-$formatted_messages = array_map(function($message) use ($user_id) {
-    return [
-        'id' => $message['id'],
-        'sender_id' => $message['sender_id'],
-        'recipient_id' => $message['recipient_id'],
-        'content' => $message['content'],
-        'created_at' => $message['created_at'],
-        'read_at' => $message['read_at'],
-        'is_own' => $message['sender_id'] == $user_id
-    ];
-}, $new_messages);
-
 echo json_encode([
     'status' => 'success',
-    'messages' => $formatted_messages,
+    'messages' => $new_messages,
     'unread_counts' => $unread_counts
 ]);
+?>

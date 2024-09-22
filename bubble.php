@@ -37,6 +37,33 @@ if (!$channel['videos_imported'] || !$channel['banner_imported']) {
     $channel = getChannelById($conn, $channel_id);
 }
 
+function formatTelegramLink($link) {
+    $link = trim($link);
+    
+    // Если ссылка начинается с @, добавляем https://t.me/
+    if (strpos($link, '@') === 0) {
+        return 'https://t.me/' . substr($link, 1);
+    }
+    
+    // Если ссылка начинается с http:// или https://, убеждаемся, что используется https://
+    if (strpos($link, 'http://') === 0) {
+        $link = 'https://' . substr($link, 7);
+    }
+    
+    // Если ссылка начинается с t.me/, добавляем https://
+    if (strpos($link, 't.me/') === 0) {
+        return 'https://' . $link;
+    }
+    
+    // Если ссылка уже в правильном формате, возвращаем как есть
+    if (strpos($link, 'https://t.me/') === 0) {
+        return $link;
+    }
+    
+    // Если ни одно из условий не подошло, возвращаем null
+    return null;
+}
+
 // Функция для обновления деталей канала
 function updateChannelDetails($conn, $channel_id) {
     // Обновление баннера
@@ -198,10 +225,15 @@ include 'header.php';
                 <a href="https://www.youtube.com/channel/<?php echo htmlspecialchars($channel['channel_id']); ?>" target="_blank" class="btn btn-primary"><?php echo __('visit_channel'); ?></a>
                 
                 <?php if (!empty($channel['telegram_link'])): ?>
-                <a href="<?php echo htmlspecialchars($channel['telegram_link']); ?>" target="_blank" class="btn btn-info">
-                    <i class="fab fa-telegram"></i> <?php echo __('join_community', ['channel' => $channel['title']]); ?>
-                </a>
-                <?php endif; ?>
+    <?php
+    $formattedTelegramLink = formatTelegramLink($channel['telegram_link']);
+    if ($formattedTelegramLink):
+    ?>
+    <a href="<?php echo htmlspecialchars($formattedTelegramLink); ?>" target="_blank" class="btn btn-info">
+        <i class="fab fa-telegram"></i> <?php echo __('join_community', ['channel' => $channel['title']]); ?>
+    </a>
+    <?php endif; ?>
+<?php endif; ?>
             </div>
         </div>
 

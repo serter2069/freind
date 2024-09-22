@@ -7,6 +7,14 @@
   Колонка: created_at - timestamp
   Колонка: read_at - timestamp
 
+Таблица: selected_cities
+  Колонка: id - int(11)
+  Колонка: place_id - varchar(255)
+  Колонка: city - varchar(255)
+  Колонка: state - varchar(255)
+  Колонка: country - varchar(255)
+  Колонка: created_at - timestamp
+
 Таблица: selected_files
   Колонка: id - int(11)
   Колонка: filename - varchar(255)
@@ -62,6 +70,11 @@
   Колонка: telegram_hash - varchar(32)
   Колонка: telegram_chat_id - varchar(255)
   Колонка: telegram_notifications - tinyint(1)
+  Колонка: profile_visited - tinyint(1)
+  Колонка: ai_generated_description - text
+  Колонка: ai_description_generated - tinyint(1)
+  Колонка: last_ai_description_update - timestamp
+  Колонка: username - varchar(255)
 
 Таблица: youtube_channels
   Колонка: id - int(11)
@@ -78,6 +91,9 @@
   Колонка: banner_imported - tinyint(1)
   Колонка: last_update - timestamp
   Колонка: telegram_link - varchar(255)
+  Колонка: ai_generated_description - text
+  Колонка: ai_description_generated - tinyint(1)
+  Колонка: last_ai_description_update - timestamp
 
 Таблица: youtube_videos
   Колонка: id - int(11)
@@ -93,6 +109,8 @@
 Таблица: messages
   Колонка: sender_id -> users(id)
   Колонка: recipient_id -> users(id)
+
+Таблица: selected_cities
 
 Таблица: selected_files
 
@@ -114,28 +132,54 @@
 Примеры данных из таблиц:
 Таблица: messages (Примеры записей)
 {
+    "id": "22",
+    "sender_id": "9",
+    "recipient_id": "12",
+    "content": "Привет",
+    "created_at": "2024-09-22 02:50:19",
+    "read_at": "2024-09-22 02:50:39"
+}
+{
+    "id": "23",
+    "sender_id": "9",
+    "recipient_id": "12",
+    "content": "Как дела?",
+    "created_at": "2024-09-22 02:50:24",
+    "read_at": "2024-09-22 02:50:39"
+}
+{
+    "id": "24",
+    "sender_id": "9",
+    "recipient_id": "12",
+    "content": "фыафыа\r\nаыфаф\r\nыаф\r\nаыфаф",
+    "created_at": "2024-09-22 02:50:34",
+    "read_at": "2024-09-22 02:50:39"
+}
+
+Таблица: selected_cities (Примеры записей)
+{
     "id": "1",
-    "sender_id": "7",
-    "recipient_id": "9",
-    "content": "",
-    "created_at": "2024-09-20 03:10:21",
-    "read_at": "2024-09-20 09:02:32"
+    "place_id": "ChIJ0X31pIK3voARo3mz1ebVzDo",
+    "city": "Las Vegas",
+    "state": "Nevada",
+    "country": "United States",
+    "created_at": "2024-09-20 21:37:36"
 }
 {
     "id": "2",
-    "sender_id": "7",
-    "recipient_id": "9",
-    "content": "Привет",
-    "created_at": "2024-09-20 03:11:16",
-    "read_at": "2024-09-20 09:02:32"
+    "place_id": "ChIJhY_6o3xghYARJ2nkA11YKPk",
+    "city": "Lafayette",
+    "state": "California",
+    "country": "United States",
+    "created_at": "2024-09-20 21:37:37"
 }
 {
     "id": "3",
-    "sender_id": "7",
-    "recipient_id": "9",
-    "content": "Че как?",
-    "created_at": "2024-09-20 03:11:24",
-    "read_at": "2024-09-20 09:02:32"
+    "place_id": "ChIJybDUc_xKtUYRTM9XV8zWRD0",
+    "city": "Moscow",
+    "state": "Moscow",
+    "country": "Russia",
+    "created_at": "2024-09-20 21:37:38"
 }
 
 Таблица: selected_files (Примеры записей)
@@ -166,6 +210,14 @@
     "city": "Moscow",
     "state": "Moscow",
     "country": "Russia"
+}
+{
+    "id": "8",
+    "user_id": "12",
+    "place_id": "ChIJ0X31pIK3voARo3mz1ebVzDo",
+    "city": "Las Vegas",
+    "state": "Nevada",
+    "country": "United States"
 }
 
 Таблица: user_subscriptions (Примеры записей)
@@ -199,7 +251,7 @@
     "registration_date": "2024-09-15 02:22:32",
     "email_activation_status": "not_activated",
     "timezone": "UTC",
-    "preferred_language": "en",
+    "preferred_language": "ru",
     "google_refresh_token": "1\/\/04llKD2EeovsqCgYIARAAGAQSNwF-L9IrBg8a7O47Fzq2C15EoSn8Wz5wBd0lBPGti8SUvsVIiHglf_s3s2f_Tkz3bE37_-0RZ2w",
     "subscriptions_processed": "0",
     "last_subscriptions_update": "2024-09-15 02:24:24",
@@ -207,7 +259,7 @@
     "import_progress": "110",
     "total_subscriptions": "110",
     "import_status": "completed",
-    "gender": "",
+    "gender": "male",
     "age": "42",
     "city": null,
     "looking_for": "none",
@@ -222,8 +274,13 @@
     "friend_gender": "[]",
     "friend_activities": "[]",
     "telegram_hash": "c5ba14c59e1d3d79bfcc706c06b084c7",
-    "telegram_chat_id": "266835227",
-    "telegram_notifications": "1"
+    "telegram_chat_id": null,
+    "telegram_notifications": null,
+    "profile_visited": "0",
+    "ai_generated_description": "Этот человек - настоящий интеллектуал с широким кругозором! Он интересуется не только новостями и аналитикой, но и саморазвитием, бизнесом, наукой и искусством. Он не боится сложных тем и всегда стремится к новым знаниям. Его увлекают истории успеха, как в бизнесе, так и в личной жизни, а также глубокие размышления о философии и психологии.  Он неравнодушен к актуальным событиям в России и мире, но не забывает и об отдыхе, наслаждаясь хорошей музыкой, юмором и путешествиями.  В нем сочетаются любознательность, жажда новых знаний и стремление к самосовершенствованию.  Он - человек, который не боится  исследовать мир и открывать для себя новое! \n",
+    "ai_description_generated": "1",
+    "last_ai_description_update": "2024-09-21 23:32:46",
+    "username": null
 }
 {
     "id": "9",
@@ -235,15 +292,15 @@
     "registration_date": "2024-09-15 23:42:08",
     "email_activation_status": "not_activated",
     "timezone": "UTC",
-    "preferred_language": "en",
-    "google_refresh_token": "1\/\/04wQR2u_aoA9ZCgYIARAAGAQSNgF-L9Ird52hPg2BgQMbNaELvTBGmG0kN9bR3xVr6FY10RH6iRcnGw7yRizHJe4YqpCHrxNOaA",
+    "preferred_language": "ru",
+    "google_refresh_token": "1\/\/0429iQsxUOQA1CgYIARAAGAQSNgF-L9Ir4Gp1zyVCfJOHXzqUqe9qa2LtmkD0eO7sN2W1AfdeAvY_vVt24DtSIwjsDCezHuAZMA",
     "subscriptions_processed": "0",
     "last_subscriptions_update": "2024-09-15 23:42:08",
     "subscriptions_imported": "0",
     "import_progress": "235",
     "total_subscriptions": "235",
     "import_status": "completed",
-    "gender": "",
+    "gender": "male",
     "age": null,
     "city": null,
     "looking_for": "none",
@@ -252,14 +309,19 @@
     "interests": null,
     "profile_picture": "https:\/\/lh3.googleusercontent.com\/a\/ACg8ocJEQpeqQEdJK9UYc0v9ebDcf4qYgZA74CGeInvRl3dCo6AX6w=s96-c",
     "city_id": null,
-    "looking_for_partner": "0",
-    "partner_gender": "[]",
-    "looking_for_friends": "0",
-    "friend_gender": "[]",
-    "friend_activities": "[]",
-    "telegram_hash": "fc76b84066bdf6fcd64ee46e8d507df2",
+    "looking_for_partner": "1",
+    "partner_gender": "[\"male\"]",
+    "looking_for_friends": "1",
+    "friend_gender": "[\"male\"]",
+    "friend_activities": "[\"coffee\"]",
+    "telegram_hash": "c37ae2f708d040b9b7690004e4ff2ac1",
     "telegram_chat_id": "266835227",
-    "telegram_notifications": "0"
+    "telegram_notifications": "0",
+    "profile_visited": "1",
+    "ai_generated_description": "Этот человек, судя по его подпискам на YouTube,  -  настоящий интеллектуал с широкими интересами! Он интересуется не только современной музыкой,  но и классикой,  а также  глубокими философскими темами.  Его  привлекают  исторические  события,  а  также  он  следит  за  новостями  и  политическими  процессами.  Помимо этого,  он  увлекается  практическими  вещами,  такими  как  DIY-проекты,  путешествия  и  технологии.  Он  не  боится  исследовать  новые  темы  и  развивать  свои  знания.  Его  характер  отличается  любознательностью,  открытостью  и  стремлением  к  самосовершенствованию.  Он  не  боится  экспериментировать  и  искать  новые  пути  к  успеху.  Он  -  настоящий  энтузиаст  жизни,  который  с  удовольствием  делится  своими  знаниями  и  опытом  с  другими.\n",
+    "ai_description_generated": "1",
+    "last_ai_description_update": "2024-09-21 23:44:54",
+    "username": "serter2069"
 }
 {
     "id": "10",
@@ -271,7 +333,7 @@
     "registration_date": "2024-09-16 02:11:51",
     "email_activation_status": "not_activated",
     "timezone": "UTC",
-    "preferred_language": "en",
+    "preferred_language": "ru",
     "google_refresh_token": "1\/\/04il9NuD-wMXZCgYIARAAGAQSNwF-L9Iri3RxeZKy-B-g-Z3tLE-f51ZFvRh738H49QA9JsSX5eJ44NbljPPC7VLuosQ1nnj7sgk",
     "subscriptions_processed": "0",
     "last_subscriptions_update": "2024-09-16 02:11:51",
@@ -279,7 +341,7 @@
     "import_progress": "16",
     "total_subscriptions": "16",
     "import_status": "completed",
-    "gender": null,
+    "gender": "male",
     "age": null,
     "city": null,
     "looking_for": "none",
@@ -295,7 +357,12 @@
     "friend_activities": null,
     "telegram_hash": null,
     "telegram_chat_id": null,
-    "telegram_notifications": "0"
+    "telegram_notifications": "0",
+    "profile_visited": "0",
+    "ai_generated_description": "Этот человек - настоящий интеллектуал с широким кругозором и интересами. Он следит за политическими событиями в России и мире, интересуется историей и культурой, неравнодушен к социальным проблемам и стремится к глубокому пониманию происходящего. Он не боится критически мыслить и анализировать информацию, что отражается в его подписке на каналы, посвященные анализу политики и общества. \n\nОн также увлечен искусством и музыкой, предпочитая альтернативные и нестандартные направления. Его интерес к Южной Африке и ее культуре выражается в подписке на канал Die Antwoord, известный своим провокационным стилем и музыкальными экспериментами.\n\nВ то же время, он интересуется технологиями и предпринимательством, следит за развитием стартапов и новыми идеями в этой сфере. Он не боится смеяться над абсурдом и иронией, что видно по его подписке на канал \"Socially Inept\", где юмор переплетается с критикой технологических компаний.\n\nОн интересуется путешествиями и открытием новых культур, что подтверждается его подпиской на каналы, посвященные путешествиям по Колумбии и Сан-Франциско. Он также увлекается личным развитием и самосовершенствованием, что видно по его подписке на канал Марины Могилько.\n\nЭтот человек интересуется разными сферами жизни, открыт новому и готов к новым знаниям. Он активный и любознательный, стремящийся к расширению своего кругозора и пониманию мира. \n",
+    "ai_description_generated": "1",
+    "last_ai_description_update": "2024-09-21 23:44:57",
+    "username": "serter"
 }
 
 Таблица: youtube_channels (Примеры записей)
@@ -313,7 +380,10 @@
     "videos_imported": "1",
     "banner_imported": "1",
     "last_update": null,
-    "telegram_link": "https:\/\/t.me\/bozhejakekonchene"
+    "telegram_link": "https:\/\/t.me\/bozhejakekonchene",
+    "ai_generated_description": "The YouTube channel \"Радио Свобода\" (Radio Free Europe\/Radio Liberty) provides uncensored news and information to a Russian audience, focusing on current events, politics, and social issues. The channel is targeted at individuals seeking unbiased reporting and critical perspectives on Russian and international news, particularly those interested in geopolitical developments and human rights. It is notable for being declared an undesirable organization by the Russian government.",
+    "ai_description_generated": "1",
+    "last_ai_description_update": "2024-09-20 23:22:51"
 }
 {
     "id": "2",
@@ -329,7 +399,10 @@
     "videos_imported": "1",
     "banner_imported": "1",
     "last_update": null,
-    "telegram_link": null
+    "telegram_link": null,
+    "ai_generated_description": "The YouTube channel \"Gazgolder\" primarily focuses on music content, featuring live performances, music videos, and collaborations with artists like Баста (Basta) and Gorilla Zippo. The channel targets a Russian-speaking audience interested in hip-hop and contemporary music. It also includes various live streams and music-related content.",
+    "ai_description_generated": "1",
+    "last_ai_description_update": "2024-09-20 23:22:55"
 }
 {
     "id": "3",
@@ -345,7 +418,10 @@
     "videos_imported": "1",
     "banner_imported": "1",
     "last_update": null,
-    "telegram_link": null
+    "telegram_link": null,
+    "ai_generated_description": "The YouTube channel UC GSDJpG1YyXuOZ5lnt68LiA, \"БЕРИ и ДЕЛАЙ – Дети,\" focuses on fun and creative activities for children. It features videos with DIY crafts, life hacks, and entertaining ideas for kids to enjoy making together. The content is designed for young audiences and their parents, aiming to provide enjoyable and educational experiences.",
+    "ai_description_generated": "1",
+    "last_ai_description_update": "2024-09-20 23:22:59"
 }
 
 Таблица: youtube_videos (Примеры записей)

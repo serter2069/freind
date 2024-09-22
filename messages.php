@@ -15,62 +15,42 @@ include 'header.php';
 $selected_user_id = null;
 $error_message = '';
 
-// Обработка запроса на создание нового чата
-if (isset($_GET['action']) && $_GET['action'] === 'write' && isset($_GET['user'])) {
-    $other_user_id = intval($_GET['user']);
-    if (getOrCreateChat($user_id, $other_user_id)) {
-        $selected_user_id = $other_user_id;
-    } else {
-        $error_message = __('error_creating_chat');
+if (isset($_GET['action']) && $_GET['action'] == 'write' && isset($_GET['user']) && is_numeric($_GET['user'])) {
+    $selected_user_id = intval($_GET['user']);
+    // Проверяем, существует ли пользователь
+    $user_exists = checkUserExists($selected_user_id);
+    if (!$user_exists) {
+        $error_message = __('user_not_found');
+        $selected_user_id = null;
     }
+} elseif (isset($_GET['user']) && is_numeric($_GET['user'])) {
+    $selected_user_id = intval($_GET['user']);
 }
 
-// Получение списка контактов с последними сообщениями
 $contacts = getContactsWithLastMessages($user_id);
 
-// Если выбран пользователь, получаем историю чата
 $chat_messages = [];
-if ($selected_user_id || (isset($_GET['user']) && is_numeric($_GET['user']))) {
-    $selected_user_id = $selected_user_id ?: intval($_GET['user']);
+if ($selected_user_id) {
     $chat_messages = getChatMessages($user_id, $selected_user_id);
     markMessagesAsRead($user_id, $selected_user_id);
 }
 
-// Получение количества непрочитанных сообщений
 $unread_counts = getUnreadMessageCounts($user_id);
 
-// Функции, ранее находившиеся в functions.php
-function getOrCreateChat($user_id, $other_user_id) {
+function checkUserExists($user_id) {
     global $conn;
-    
-    $stmt = $conn->prepare("
-        SELECT id FROM messages 
-        WHERE (sender_id = ? AND recipient_id = ?) OR (sender_id = ? AND recipient_id = ?)
-        LIMIT 1
-    ");
-    $stmt->bind_param("iiii", $user_id, $other_user_id, $other_user_id, $user_id);
+    $stmt = $conn->prepare("SELECT id FROM users WHERE id = ?");
+    $stmt->bind_param("i", $user_id);
     $stmt->execute();
     $result = $stmt->get_result();
-    
-    if ($result->num_rows > 0) {
-        $stmt->close();
-        return true;
-    } else {
-        $stmt->close();
-        $stmt = $conn->prepare("
-            INSERT INTO messages (sender_id, recipient_id, content, created_at)
-            VALUES (?, ?, '', NOW())
-        ");
-        $stmt->bind_param("ii", $user_id, $other_user_id);
-        $success = $stmt->execute();
-        $stmt->close();
-        return $success;
-    }
+    $exists = $result->num_rows > 0;
+    $stmt->close();
+    return $exists;
 }
 
 function getContactsWithLastMessages($user_id) {
     global $conn;
-    $query = "SELECT u.id, u.name, u.profile_picture, m.content as last_message, m.created_at as last_message_time,
+    $query = "SELECT u.id, u.name, u.profile_picture, m.content as last_message, m.created_at as last_message_time, m.sender_id as last_message_sender_id,
                      (SELECT COUNT(*) FROM messages WHERE sender_id = u.id AND recipient_id = ? AND read_at IS NULL) as unread_count
               FROM users u
               INNER JOIN (
@@ -80,7 +60,8 @@ function getContactsWithLastMessages($user_id) {
                           ELSE sender_id
                       END as contact_id,
                       content,
-                      created_at
+                      created_at,
+                      sender_id
                   FROM messages
                   WHERE sender_id = ? OR recipient_id = ?
                   ORDER BY created_at DESC
@@ -118,6 +99,7 @@ function markMessagesAsRead($recipient_id, $sender_id) {
     $stmt = $conn->prepare($query);
     $stmt->bind_param("ii", $recipient_id, $sender_id);
     $stmt->execute();
+    return $stmt->affected_rows;
 }
 
 function getUnreadMessageCounts($user_id) {
@@ -152,7 +134,7 @@ function getProfilePictureUrl($user_id) {
     if ($user && !empty($user['profile_picture'])) {
         return $user['profile_picture'];
     } else {
-        return 'path/to/default/avatar.png'; // Замените на путь к вашему изображению по умолчанию
+        return 'path/to/default/avatar.png';
     }
 }
 
@@ -171,25 +153,22 @@ function formatMessageDate($date) {
         return $messageDate->format('H:i');
     }
 }
-
 ?>
 
-<div class="container mt-4">
-    <h1 class="text-center mb-4"><?php echo __('messages'); ?></h1>
-    
+<div class="container-fluid mt-3 chat-container">
     <?php if (!empty($error_message)): ?>
         <div class="alert alert-danger"><?php echo $error_message; ?></div>
     <?php endif; ?>
 
-    <?php if (empty($contacts)): ?>
-        <div class="alert alert-info">
-            <?php echo __('no_messages_yet'); ?>
-            <a href="people.php"><?php echo __('find_people'); ?></a>
-        </div>
-    <?php else: ?>
-        <div class="row">
-            <div class="col-md-4">
-                <div class="list-group">
+    <div class="row h-100">
+        <div class="col-md-4 contacts-list">
+            <div class="list-group">
+                <?php if (empty($contacts) && !$selected_user_id): ?>
+                    <div class="alert alert-info">
+                        <?php echo __('no_messages_yet'); ?>
+                        <a href="people.php"><?php echo __('find_people'); ?></a>
+                    </div>
+                <?php else: ?>
                     <?php foreach ($contacts as $contact): ?>
                         <a href="?user=<?php echo $contact['id']; ?>" class="list-group-item list-group-item-action <?php echo ($selected_user_id == $contact['id']) ? 'active' : ''; ?>">
                             <div class="d-flex w-100 justify-content-between align-items-center">
@@ -197,7 +176,12 @@ function formatMessageDate($date) {
                                     <img src="<?php echo getProfilePictureUrl($contact['id']); ?>" alt="<?php echo htmlspecialchars($contact['name']); ?>" class="rounded-circle me-2" width="40" height="40">
                                     <div>
                                         <h5 class="mb-1"><?php echo htmlspecialchars($contact['name']); ?></h5>
-                                        <p class="mb-1 small text-muted"><?php echo htmlspecialchars(substr($contact['last_message'], 0, 30)) . (strlen($contact['last_message']) > 30 ? '...' : ''); ?></p>
+                                        <p class="mb-1 small text-muted">
+                                            <?php
+                                            $lastMessageSender = ($contact['last_message_sender_id'] == $user_id) ? __('you') : $contact['name'];
+                                            echo $lastMessageSender . ': ' . htmlspecialchars(substr($contact['last_message'], 0, 30)) . (strlen($contact['last_message']) > 30 ? '...' : '');
+                                            ?>
+                                        </p>
                                     </div>
                                 </div>
                                 <div class="text-end">
@@ -209,92 +193,192 @@ function formatMessageDate($date) {
                             </div>
                         </a>
                     <?php endforeach; ?>
-                </div>
-            </div>
-            <div class="col-md-8">
-                <?php if ($selected_user_id): ?>
-                    <?php 
-                    $selected_user = getUserById($selected_user_id);
-                    if ($selected_user):
-                    ?>
-                        <div class="card mb-3">
-                            <div class="card-body d-flex align-items-center">
-                                <img src="<?php echo getProfilePictureUrl($selected_user_id); ?>" alt="<?php echo htmlspecialchars($selected_user['name']); ?>" class="rounded-circle me-3" width="50" height="50">
-                                <h5 class="card-title mb-0"><?php echo htmlspecialchars($selected_user['name']); ?></h5>
-                            </div>
-                        </div>
-                        <div id="chat-messages" class="mb-3 p-3 bg-light rounded" style="height: 400px; overflow-y: auto;">
-                            <?php foreach ($chat_messages as $message): ?>
-                                <div class="message <?php echo ($message['sender_id'] == $user_id) ? 'text-end' : ''; ?>">
-                                    <div class="message-content <?php echo ($message['sender_id'] == $user_id) ? 'bg-primary text-white' : 'bg-white'; ?> d-inline-block p-2 rounded mb-2">
-                                        <?php echo nl2br(htmlspecialchars($message['content'])); ?>
-                                    </div>
-                                    <div class="message-time small text-muted">
-                                        <?php echo formatMessageDate($message['created_at']); ?>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                        <form id="message-form">
-                            <input type="hidden" name="recipient_id" value="<?php echo $selected_user_id; ?>">
-                            <div class="mb-3">
-                                <textarea class="form-control" name="content" rows="3" placeholder="<?php echo __('type_your_message'); ?>"></textarea>
-                            </div>
-                            <button type="submit" class="btn btn-primary"><?php echo __('send'); ?></button>
-                        </form>
-                    <?php else: ?>
-                        <div class="alert alert-warning">
-                            <?php echo __('user_not_found'); ?>
-                        </div>
-                    <?php endif; ?>
-                <?php else: ?>
-                    <div class="alert alert-info">
-                        <?php echo __('select_contact_to_start_chat'); ?>
-                    </div>
                 <?php endif; ?>
             </div>
         </div>
-    <?php endif; ?>
+        <div class="col-md-8 messages-area">
+            <?php if ($selected_user_id): ?>
+                <?php 
+                $selected_user = getUserById($selected_user_id);
+                if ($selected_user):
+                ?>
+                    <div class="card mb-3 sticky-top">
+                        <div class="card-body d-flex align-items-center">
+                            <img src="<?php echo getProfilePictureUrl($selected_user_id); ?>" alt="<?php echo htmlspecialchars($selected_user['name']); ?>" class="rounded-circle me-3" width="50" height="50">
+                            <h5 class="card-title mb-0">
+                                <a href="profile.php?id=<?php echo $selected_user_id; ?>" class="text-decoration-none">
+                                    <?php echo htmlspecialchars($selected_user['name']); ?>
+                                </a>
+                            </h5>
+                        </div>
+                    </div>
+                    <div id="chat-messages" class="mb-3 p-3 bg-light rounded messages-list">
+                        <?php foreach ($chat_messages as $message): ?>
+                            <div class="message <?php echo ($message['sender_id'] == $user_id) ? 'sent' : 'received'; ?>">
+                                <div class="message-sender">
+                                    <?php echo ($message['sender_id'] == $user_id) ? __('you') : htmlspecialchars($selected_user['name']); ?>
+                                </div>
+                                <div class="message-content <?php echo ($message['sender_id'] == $user_id) ? 'bg-primary text-white' : 'bg-white'; ?> d-inline-block p-2 rounded mb-2">
+                                    <?php echo nl2br(htmlspecialchars($message['content'])); ?>
+                                    <div class="message-time small <?php echo ($message['sender_id'] == $user_id) ? 'text-white-50' : 'text-muted'; ?>">
+                                        <?php echo formatMessageDate($message['created_at']); ?>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <div id="message-input-container" class="message-input">
+                        <form id="message-form">
+                            <input type="hidden" name="recipient_id" value="<?php echo $selected_user_id; ?>">
+                            <div class="input-group">
+                                <textarea class="form-control" name="content" rows="1" placeholder="<?php echo __('type_your_message'); ?>"></textarea>
+                                <button type="submit" class="btn btn-primary"><?php echo __('send'); ?></button>
+                            </div>
+                        </form>
+                    </div>
+                <?php else: ?>
+                    <div class="alert alert-warning">
+                        <?php echo __('user_not_found'); ?>
+                    </div>
+                <?php endif; ?>
+            <?php elseif (empty($contacts)): ?>
+                <div class="alert alert-info">
+                    <?php echo __('select_contact_to_start_chat'); ?>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
 </div>
+
+<style>
+.chat-container {
+    height: calc(100vh - 60px);
+    display: flex;
+    flex-direction: column;
+}
+.row.h-100 {
+    flex-grow: 1;
+}
+.contacts-list {
+    height: 100%;
+    overflow-y: auto;
+}
+.messages-area {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+.messages-list {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding-bottom: 60px;
+}
+.message-input {
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    width: calc(66.666% - 30px);
+    background: white;
+    padding: 15px;
+    border-top: 1px solid #dee2e6;
+}
+.message {
+    margin-bottom: 10px;
+}
+.message.sent {
+    text-align: right;
+}
+.message-sender {
+    font-size: 0.8em;
+    margin-bottom: 2px;
+    color: #6c757d;
+}
+.message-content {
+    max-width: 70%;
+    display: inline-block;
+}
+.sticky-top {
+    top: 0;
+    z-index: 1020;
+}
+textarea[name="content"] {
+    resize: none;
+    overflow-y: hidden;
+}
+</style>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 $(document).ready(function() {
     var chatMessages = $('#chat-messages');
+    var messageInput = $('textarea[name="content"]');
+    var messageForm = $('#message-form');
+    var lastMessageTime = '<?php echo !empty($chat_messages) ? end($chat_messages)['created_at'] : ''; ?>';
+    
     chatMessages.scrollTop(chatMessages[0].scrollHeight);
 
-    $('#message-form').on('submit', function(e) {
+    messageForm.on('submit', function(e) {
         e.preventDefault();
-        var form = $(this);
-        var content = form.find('textarea[name="content"]').val().trim();
+        sendMessage();
+    });
+
+    messageInput.on('keydown', function(e) {
+        if (e.keyCode === 13 && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    messageInput.on('input', function() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+        var maxHeight = window.innerHeight * 0.25; // 25% от высоты экрана
+        if (this.scrollHeight > maxHeight) {
+            $(this).css('overflow-y', 'auto');
+            $(this).css('height', maxHeight + 'px');
+        } else {
+            $(this).css('overflow-y', 'hidden');
+        }
+    });
+
+    function sendMessage() {
+        var content = messageInput.val().trim();
         if (content) {
+            var submitButton = messageForm.find('button[type="submit"]');
+            submitButton.prop('disabled', true);
             $.ajax({
                 url: 'send_message.php',
                 method: 'POST',
-                data: form.serialize(),
+                data: messageForm.serialize(),
                 dataType: 'json',
                 success: function(response) {
                     if (response.status === 'success') {
-                        form.find('textarea[name="content"]').val('');
+                        messageInput.val('');
+                        messageInput.trigger('input');
                         addMessageToChat(response.message);
+                        lastMessageTime = response.message.created_at;
                     } else {
-                        alert('<?php echo __("error_sending_message"); ?>');
+                        alert('<?php echo __("error_sending_message"); ?>: ' + response.message);
                     }
                 },
                 error: function() {
                     alert('<?php echo __("error_sending_message"); ?>');
+                },
+                complete: function() {
+                    submitButton.prop('disabled', false);
                 }
             });
         }
-    });
+    }
 
     function addMessageToChat(message) {
-        var messageHtml = '<div class="message text-end">' +
+        var messageHtml = '<div class="message sent" data-id="' + message.id + '">' +
+            '<div class="message-sender"><?php echo __('you'); ?></div>' +
             '<div class="message-content bg-primary text-white d-inline-block p-2 rounded mb-2">' +
             message.content +
-            '</div>' +
-            '<div class="message-time small text-muted">' +
+            '<div class="message-time small text-white-50">' +
             formatMessageDate(message.created_at) +
+            '</div>' +
             '</div>' +
             '</div>';
         chatMessages.append(messageHtml);
@@ -307,7 +391,6 @@ $(document).ready(function() {
     }
 
     function loadNewMessages() {
-        var lastMessageTime = chatMessages.find('.message:last .message-time').text();
         $.ajax({
             url: 'get_new_messages.php',
             method: 'GET',
@@ -319,14 +402,33 @@ $(document).ready(function() {
             success: function(response) {
                 if (response.messages && response.messages.length > 0) {
                     response.messages.forEach(function(message) {
-                        addMessageToChat(message);
+                        if (message.sender_id != <?php echo $user_id; ?>) {
+                            addReceivedMessageToChat(message);
+                        }
                     });
+                    lastMessageTime = response.messages[response.messages.length - 1].created_at;
                 }
                 if (response.unread_counts) {
                     updateUnreadCounts(response.unread_counts);
                 }
             }
         });
+    }
+
+    function addReceivedMessageToChat(message) {
+        if ($('.message[data-id="' + message.id + '"]').length === 0) {
+            var messageHtml = '<div class="message received" data-id="' + message.id + '">' +
+                '<div class="message-sender"><?php echo htmlspecialchars($selected_user['name'] ?? ''); ?></div>' +
+                '<div class="message-content bg-white d-inline-block p-2 rounded mb-2">' +
+                message.content +
+                '<div class="message-time small text-muted">' +
+                formatMessageDate(message.created_at) +
+                '</div>' +
+                '</div>' +
+                '</div>';
+            chatMessages.append(messageHtml);
+            chatMessages.scrollTop(chatMessages[0].scrollHeight);
+        }
     }
 
     function updateUnreadCounts(unreadCounts) {
